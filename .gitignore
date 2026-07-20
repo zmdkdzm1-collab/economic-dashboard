@@ -1,0 +1,9 @@
+# 블룸버그/인포맥스에서 내려받은 원본 엑셀 파일은 저장소에 올리지 않습니다.
+data-imports/*.xlsx
+data-imports/*.xls
+data-imports/*.csv
+!data-imports/README.txt
+
+# OS 잡파일
+.DS_Store
+Thumbs.db

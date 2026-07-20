@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>글로벌 경제지표 대시보드</title>
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+
+  <header class="app-header">
+    <div class="app-header-top">
+      <h1>🌍 글로벌 경제지표 대시보드</h1>
+      <button id="themeToggleBtn" class="theme-toggle-btn" title="라이트/다크 테마 전환">🌓 테마</button>
+    </div>
+    <p class="notice">
+      ⚠️ 일부 지표(미국 CPI/근원CPI, 각국 중앙은행 2026년 회의 일정)는 공식 자료로 확인한 실제 데이터이지만,
+      나머지 발표 일정·컨센서스·실제치는 아직 화면 동작 확인용 <strong>예시 데이터</strong>입니다.
+      실제 값인지는 각 지표 상세의 발표기관 링크에서 직접 확인해 주세요. 수정 방법은 <code>사용법.md</code> 참고.
+    </p>
+  </header>
+
+  <nav class="view-tabs">
+    <button class="view-tab-btn active" data-view="home">🏠 홈</button>
+    <button class="view-tab-btn" data-view="dictionary">📖 지표 사전</button>
+    <button class="view-tab-btn" data-view="calendar">📅 발표 캘린더</button>
+    <button class="view-tab-btn" data-view="monetary">🏦 통화정책</button>
+  </nav>
+
+  <div class="category-filter" id="categoryFilter">
+    <!-- app.js가 카테고리 버튼을 여기 렌더링 -->
+  </div>
+
+  <main>
+    <!-- 홈 화면: 국채금리 현황판 + 지표 비교 도구 -->
+    <section id="view-home" class="view-panel active">
+      <h3 class="home-section-title">주요국 10년 국채금리</h3>
+      <div class="bond-card-grid" id="bondCardGrid">
+        <!-- app.js가 국채금리 카드를 여기 렌더링 -->
+      </div>
+
+      <h3 class="home-section-title">주요국 기준금리</h3>
+      <div class="bond-card-grid" id="policyRateCardGrid">
+        <!-- app.js가 기준금리 카드를 여기 렌더링 -->
+      </div>
+
+      <h4 class="home-section-subtitle">기간별 국가 간 금리 변동폭 비교 (bp)</h4>
+      <div class="bond-compare-chart" id="bondCompareChart">
+        <!-- app.js가 1주/1개월/1년 변동폭 비교 막대를 여기 렌더링 -->
+      </div>
+
+      <h3 class="home-section-title">글로벌 지수·원자재</h3>
+      <div class="bond-card-grid" id="assetCardGrid">
+        <!-- app.js가 코스피/S&P500/WTI 카드를 여기 렌더링 -->
+      </div>
+
+      <h3 class="home-section-title">🗂️ 카테고리별 주요 지표 <span class="home-section-hint">카드를 클릭하면 지표 사전(발표기관·시간·중요도·의미·채권영향)이 열립니다</span></h3>
+      <div class="key-category-tabs" id="keyCategoryTabs">
+        <!-- app.js가 카테고리 탭을 여기 렌더링 -->
+      </div>
+      <div class="key-indicator-grid" id="keyIndicatorGrid">
+        <!-- app.js가 선택된 카테고리의 지표 카드를 여기 렌더링 -->
+      </div>
+
+      <h3 class="home-section-title">주간 경제지표·이벤트 캘린더</h3>
+      <div class="home-week-nav">
+        <button class="home-week-btn" data-offset="-1">◀ 지난주</button>
+        <span id="homeWeekLabel" class="week-range-label"></span>
+        <button class="home-week-btn active" data-offset="0">이번주</button>
+        <button class="home-week-btn" data-offset="1">다음주 ▶</button>
+      </div>
+      <div id="homeWeekList" class="home-week-list"></div>
+
+      <h3 class="home-section-title">지표 비교 도구</h3>
+      <p class="home-section-desc">두 지표(또는 국채금리)를 골라 같은 기간 추이를 겹쳐보고, 통계적으로 얼마나 관련이 있는지 확인해 보세요.</p>
+      <div class="compare-controls">
+        <div class="compare-picker">
+          <label for="compareSeriesA">시리즈 1</label>
+          <select id="compareSeriesA"></select>
+        </div>
+        <div class="compare-picker">
+          <label for="compareSeriesB">시리즈 2</label>
+          <select id="compareSeriesB"></select>
+        </div>
+        <div class="compare-range">
+          <label>기간 (날짜 직접 선택)</label>
+          <div class="compare-date-inputs">
+            <input type="date" id="compareStartDate" />
+            <span>~</span>
+            <input type="date" id="compareEndDate" />
+            <button class="range-btn active" data-range="all">전체 기간</button>
+          </div>
+        </div>
+      </div>
+      <div id="compareChartContainer" class="compare-chart-container"></div>
+      <div id="compareStatsContainer" class="compare-stats-container"></div>
+    </section>
+
+    <!-- 지표 사전 화면 -->
+    <section id="view-dictionary" class="view-panel">
+      <div class="indicator-grid" id="indicatorGrid">
+        <!-- app.js가 지표 카드를 여기 렌더링 -->
+      </div>
+    </section>
+
+    <!-- 캘린더 화면 -->
+    <section id="view-calendar" class="view-panel">
+      <div class="calendar-nav">
+        <button id="prevMonthBtn">◀ 이전달</button>
+        <span id="monthLabel" class="week-range-label"></span>
+        <button id="thisMonthBtn">이번달</button>
+        <button id="nextMonthBtn">다음달 ▶</button>
+      </div>
+      <div class="calendar-legend">
+        <span class="event-status-badge status-past">완료</span> 이미 발표됨 &nbsp;
+        <span class="event-status-badge status-today">오늘</span> 오늘 발표 &nbsp;
+        <span class="event-status-badge status-upcoming">예정</span> 발표 예정
+      </div>
+      <div class="calendar-grid" id="calendarGrid">
+        <!-- app.js가 한 달치 날짜 칸을 여기 렌더링 -->
+      </div>
+    </section>
+
+    <!-- 통화정책 화면: 국가별 중앙은행 금리 추이 + 시장 전망 -->
+    <section id="view-monetary" class="view-panel">
+      <p class="monetary-intro">각국 중앙은행의 기준금리가 과거부터 지금까지 어떻게 변해왔고, 시장은 앞으로 어떻게 움직일 것으로 보는지 한눈에 정리했습니다. 카드를 클릭하면 의사록 공개일 등 상세 정보로 이동합니다.</p>
+      <div class="monetary-grid" id="monetaryGrid">
+        <!-- app.js가 국가별 통화정책 카드를 여기 렌더링 -->
+      </div>
+    </section>
+  </main>
+
+  <!-- 지표 상세 모달 -->
+  <div id="detailModal" class="modal-overlay">
+    <div class="modal-box">
+      <button id="modalCloseBtn" class="modal-close">✕</button>
+      <div id="modalContent"><!-- app.js가 상세 내용을 여기 렌더링 --></div>
+    </div>
+  </div>
+
+  <script src="data.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
