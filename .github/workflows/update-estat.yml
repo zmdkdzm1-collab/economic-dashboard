@@ -1,0 +1,38 @@
+name: Update e-Stat reference data (daily)
+
+on:
+  schedule:
+    # 매일 08:30 KST (= 전날 23:30 UTC)
+    - cron: "30 23 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: "update-estat"
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Fetch e-Stat series and update data.js
+        env:
+          ESTAT_APP_ID: ${{ secrets.ESTAT_APP_ID }}
+        run: node scripts/update-estat.mjs
+      - name: Commit changes if any
+        run: |
+          if [[ -n "$(git status --porcelain data.js)" ]]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add data.js
+            git commit -m "chore: auto-update e-Stat reference data"
+            git push
+          else
+            echo "No changes to data.js"
+          fi

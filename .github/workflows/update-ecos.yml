@@ -1,0 +1,38 @@
+name: Update ECOS reference data (daily)
+
+on:
+  schedule:
+    # 매일 08:20 KST (= 전날 23:20 UTC)
+    - cron: "20 23 * * *"
+  workflow_dispatch: {}
+
+permissions:
+  contents: write
+
+concurrency:
+  group: "update-ecos"
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+      - name: Fetch ECOS series and update data.js
+        env:
+          ECOS_API_KEY: ${{ secrets.ECOS_API_KEY }}
+        run: node scripts/update-ecos.mjs
+      - name: Commit changes if any
+        run: |
+          if [[ -n "$(git status --porcelain data.js)" ]]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add data.js
+            git commit -m "chore: auto-update ECOS reference data"
+            git push
+          else
+            echo "No changes to data.js"
+          fi

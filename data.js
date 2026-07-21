@@ -2644,3 +2644,27 @@ const fredReference = {
   series: {},
 };
 // <<FRED_AUTO_END>>
+
+// ============================================================================
+// ECOS (한국은행 경제통계시스템) 참고 시계열 — 한국 금리·환율·물가.
+// .github/workflows/update-ecos.yml(매일)이 갱신.
+// ============================================================================
+// <<ECOS_AUTO_START>> 이 블록은 자동 갱신됩니다. 수동 편집 시 주석 마커를 지우지 마세요.
+const ecosReference = {
+  asOf: null,
+  source: { title: "한국은행 ECOS", url: "https://ecos.bok.or.kr/" },
+  series: {},
+};
+// <<ECOS_AUTO_END>>
+
+// ============================================================================
+// e-Stat (일본 정부통계 포털) 참고 시계열 — 일본 물가 등.
+// .github/workflows/update-estat.yml(매일)이 갱신.
+// ============================================================================
+// <<ESTAT_AUTO_START>> 이 블록은 자동 갱신됩니다. 수동 편집 시 주석 마커를 지우지 마세요.
+const estatReference = {
+  asOf: null,
+  source: { title: "일본 e-Stat", url: "https://www.e-stat.go.jp/" },
+  series: {},
+};
+// <<ESTAT_AUTO_END>>
