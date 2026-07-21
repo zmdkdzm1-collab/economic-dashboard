@@ -9,6 +9,7 @@ const rawEventById = new Map(calendarEvents.filter((ev) => ev.raw).map((ev) => [
 const state = {
   view: "home", // "home" | "dictionary" | "calendar" | "monetary"
   category: "전체",
+  calImportance: "전체", // 캘린더 중요도 필터: "전체" | "상" | "중" | "하"
   monthStart: getMonthStart(new Date()), // 현재 화면에 보이는 달의 1일
   compareA: "bond_kr_10y",
   compareB: "us_cpi",
@@ -315,10 +316,12 @@ function renderCalendar() {
   document.getElementById("monthLabel").textContent =
     `${state.monthStart.getFullYear()}년 ${state.monthStart.getMonth() + 1}월`;
 
-  const filteredEvents =
-    state.category === "전체"
-      ? calendarEvents
-      : calendarEvents.filter((ev) => indicatorById.get(ev.indicatorId)?.category === state.category);
+  const eventImportance = (ev) => (ev.raw ? ev.importance : indicatorById.get(ev.indicatorId)?.importance);
+  const filteredEvents = calendarEvents.filter((ev) => {
+    if (state.category !== "전체" && indicatorById.get(ev.indicatorId)?.category !== state.category) return false;
+    if (state.calImportance !== "전체" && eventImportance(ev) !== state.calImportance) return false;
+    return true;
+  });
 
   const todayYmd = formatYmd(today);
 
@@ -380,6 +383,13 @@ function setupCalendarNav() {
   document.getElementById("thisMonthBtn").addEventListener("click", () => {
     state.monthStart = getMonthStart(new Date());
     renderCalendar();
+  });
+  document.querySelectorAll("#importanceFilter .imp-filter-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.calImportance = btn.dataset.imp;
+      document.querySelectorAll("#importanceFilter .imp-filter-btn").forEach((b) => b.classList.toggle("active", b === btn));
+      renderCalendar();
+    });
   });
 }
 
