@@ -2632,3 +2632,15 @@ const policyRates = [
     ],
   },
 ];
+
+// ============================================================================
+// FRED (미국 세인트루이스 연은) 참고 시계열 — 사용자가 올린 금리·환율 데이터와
+// 교차검증하기 위한 독립 실제 데이터. .github/workflows/update-fred.yml(매일)이 갱신.
+// ============================================================================
+// <<FRED_AUTO_START>> 이 블록은 .github/workflows/update-fred.yml(매일)이 FRED API로 자동 갱신합니다. 수동 편집 시 주석 마커를 지우지 마세요.
+const fredReference = {
+  asOf: null,
+  source: { title: "FRED (St. Louis Fed)", url: "https://fred.stlouisfed.org/" },
+  series: {},
+};
+// <<FRED_AUTO_END>>
