@@ -1328,7 +1328,7 @@ const indicators = [
       { title: "Fed Rate Forecast 2026 (PrimeRates)", url: "https://primerates.com/primerate/fed-rate-forecast-2026/" },
       { title: "Goldman Sachs: Outlook for Fed Rate Cuts in 2026", url: "https://www.goldmansachs.com/insights/articles/the-outlook-for-fed-rate-cuts-in-2026" },
     ],
-    // <<FEDWATCH_AUTO_START>> 이 블록은 .github/workflows/update-fedwatch.yml(주 1회)이 CME API로 자동 갱신합니다. 수동 편집 시 주석 마커를 지우지 마세요.
+    // <<FEDWATCH_AUTO_START>> 이 블록은 .github/workflows/update-fedwatch.yml(매일)이 CME API로 자동 갱신합니다. 수동 편집 시 주석 마커를 지우지 마세요.
     cmeProbability: {
       meetingDate: "2026-07-29",
       asOf: "2026-07-16 00:15 (EDT)",

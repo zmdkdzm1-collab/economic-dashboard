@@ -1,9 +1,9 @@
-name: Update FedWatch (weekly)
+name: Update FedWatch (daily)
 
 on:
   schedule:
-    # 매주 월요일 08:00 KST (= 일요일 23:00 UTC)
-    - cron: "0 23 * * 0"
+    # 매일 08:00 KST (= 전날 23:00 UTC)
+    - cron: "0 23 * * *"
   workflow_dispatch: {} # 수동 실행 버튼
 
 permissions:

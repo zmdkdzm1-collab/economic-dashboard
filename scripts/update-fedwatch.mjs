@@ -3,7 +3,7 @@
 // update-fedwatch.mjs
 // CME API에서 FedWatch(연방기금금리 선물 기반 회의별 확률)를 가져와
 // data.js의 <<FEDWATCH_AUTO_START>> ~ <<FEDWATCH_AUTO_END>> 블록을 갱신합니다.
-// GitHub Actions(주 1회)에서 실행되며, 로컬에서도 환경변수만 있으면 동작합니다.
+// GitHub Actions(매일 1회)에서 실행되며, 로컬에서도 환경변수만 있으면 동작합니다.
 //
 // 필요한 환경변수 (GitHub Secrets 로 주입):
 //   CME_API_URL     : FedWatch 확률을 반환하는 엔드포인트 URL   (필수)
@@ -90,7 +90,7 @@ function renderBlock(p) {
     .map((o) => `        { label: ${JSON.stringify(o.label)}, pct: ${Number(o.pct.toFixed(1))} },`)
     .join("\n");
   return (
-    `${START} 이 블록은 .github/workflows/update-fedwatch.yml(주 1회)이 CME API로 자동 갱신합니다. 수동 편집 시 주석 마커를 지우지 마세요.\n` +
+    `${START} 이 블록은 .github/workflows/update-fedwatch.yml(매일)이 CME API로 자동 갱신합니다. 수동 편집 시 주석 마커를 지우지 마세요.\n` +
     `    cmeProbability: {\n` +
     `      meetingDate: ${JSON.stringify(p.meetingDate)},\n` +
     `      asOf: ${JSON.stringify(p.asOf)},\n` +
