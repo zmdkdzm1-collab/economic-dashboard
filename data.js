@@ -1331,10 +1331,10 @@ const indicators = [
     // <<FEDWATCH_AUTO_START>> 이 블록은 .github/workflows/update-fedwatch.yml(매일)이 CME API로 자동 갱신합니다. 수동 편집 시 주석 마커를 지우지 마세요.
     cmeProbability: {
       meetingDate: "2026-07-29",
-      asOf: "2026-07-16 00:15 (EDT)",
+      asOf: "2026-07-21 02:02:15 (CT)",
       outcomes: [
-        { label: "3.50~3.75% 동결", pct: 87.8 },
-        { label: "3.75~4.00%로 25bp 인상", pct: 12.2 },
+        { label: "3.50~3.75% 동결", pct: 83.4 },
+        { label: "3.75~4.00%로 25bp 인상", pct: 16.6 },
         { label: "인하", pct: 0 },
       ],
       source: { title: "CME FedWatch", url: "https://www.cmegroup.com/markets/interest-rates/cme-fedwatch-tool.html" },
@@ -2632,3 +2632,39 @@ const policyRates = [
     ],
   },
 ];
+
+// ============================================================================
+// FRED (미국 세인트루이스 연은) 참고 시계열 — 사용자가 올린 금리·환율 데이터와
+// 교차검증하기 위한 독립 실제 데이터. .github/workflows/update-fred.yml(매일)이 갱신.
+// ============================================================================
+// <<FRED_AUTO_START>> 이 블록은 .github/workflows/update-fred.yml(매일)이 FRED API로 자동 갱신합니다. 수동 편집 시 주석 마커를 지우지 마세요.
+const fredReference = {
+  asOf: null,
+  source: { title: "FRED (St. Louis Fed)", url: "https://fred.stlouisfed.org/" },
+  series: {},
+};
+// <<FRED_AUTO_END>>
+
+// ============================================================================
+// ECOS (한국은행 경제통계시스템) 참고 시계열 — 한국 금리·환율·물가.
+// .github/workflows/update-ecos.yml(매일)이 갱신.
+// ============================================================================
+// <<ECOS_AUTO_START>> 이 블록은 자동 갱신됩니다. 수동 편집 시 주석 마커를 지우지 마세요.
+const ecosReference = {
+  asOf: null,
+  source: { title: "한국은행 ECOS", url: "https://ecos.bok.or.kr/" },
+  series: {},
+};
+// <<ECOS_AUTO_END>>
+
+// ============================================================================
+// e-Stat (일본 정부통계 포털) 참고 시계열 — 일본 물가 등.
+// .github/workflows/update-estat.yml(매일)이 갱신.
+// ============================================================================
+// <<ESTAT_AUTO_START>> 이 블록은 자동 갱신됩니다. 수동 편집 시 주석 마커를 지우지 마세요.
+const estatReference = {
+  asOf: null,
+  source: { title: "일본 e-Stat", url: "https://www.e-stat.go.jp/" },
+  series: {},
+};
+// <<ESTAT_AUTO_END>>
