@@ -23,6 +23,45 @@ const marketAssetById = new Map(marketAssets.map((a) => [a.id, a]));
 const policyRateById = new Map(policyRates.map((r) => [r.id, r]));
 
 // ----------------------------------------------------------------------------
+// rate-data.js(info_daily.xlsx에서 추출한 일별 시계열) 연동
+// - 비교 도구 드롭다운에 210개 시리즈를 추가한다("rd:" 접두)
+// - 홈의 한/미/일 10년 국채금리 카드를 일별 실데이터로 교체한다
+// rate-data.js가 없어도 대시보드가 동작하도록 방어적으로 처리한다.
+// ----------------------------------------------------------------------------
+const hasRateData = typeof rateData !== "undefined" && rateData && Array.isArray(rateData.series);
+const rateSeriesById = new Map(hasRateData ? rateData.series.map((s) => [s.id, s]) : []);
+const _ratePointsCache = new Map();
+
+// rateData 시리즈 id -> [{date, value}] (누락일 null은 제외). 결과는 캐시한다.
+function rateSeriesPoints(id) {
+  if (_ratePointsCache.has(id)) return _ratePointsCache.get(id);
+  const s = rateSeriesById.get(id);
+  if (!s) return [];
+  const pts = [];
+  for (let i = 0; i < rateData.dates.length; i++) {
+    const v = s.values[i];
+    if (v !== null && v !== undefined) pts.push({ date: rateData.dates[i], value: v });
+  }
+  _ratePointsCache.set(id, pts);
+  return pts;
+}
+
+// 홈 국채금리 카드용: 기존 series의 rateData 시작일 이전 구간(장기 과거)을 살리고
+// 그 뒤로 일별 실데이터를 이어붙여 촘촘한 추이를 만든다.
+function refreshBondSeriesFromRateData() {
+  if (!hasRateData) return;
+  const mapping = { bond_kr_10y: "ktb10y", bond_us_10y: "ust0y", bond_jp_10y: "jpy10y", bond_au_10y: "aud10y" };
+  Object.entries(mapping).forEach(([bondId, rateId]) => {
+    const bond = bondYieldById.get(bondId);
+    const daily = rateSeriesPoints(rateId);
+    if (!bond || daily.length === 0) return;
+    const firstDaily = daily[0].date;
+    const legacyOld = bond.series.filter((p) => p.date < firstDaily);
+    bond.series = [...legacyOld, ...daily];
+  });
+}
+
+// ----------------------------------------------------------------------------
 // 날짜 유틸 함수
 // ----------------------------------------------------------------------------
 function getMonthStart(date) {
@@ -1245,6 +1284,12 @@ function getSeriesById(compId) {
     if (!r) return null;
     return { label: `${r.country} ${r.name}`, unit: r.unit, points: r.series };
   }
+  if (compId.startsWith("rd:")) {
+    const s = rateSeriesById.get(compId.slice(3));
+    if (!s) return null;
+    const label = s.country ? `${s.country} ${s.name}` : s.name;
+    return { label, unit: s.unit, points: rateSeriesPoints(s.id) };
+  }
   const ind = indicatorById.get(compId.slice(4));
   if (!ind) return null;
   return { label: `${ind.country} ${ind.name}`, unit: ind.unit, points: getRealSeriesForIndicator(ind) };
@@ -1258,7 +1303,14 @@ function getComparableOptions() {
   const indOpts = indicators
     .filter((ind) => getRealSeriesForIndicator(ind).length >= 2)
     .map((ind) => ({ id: `ind:${ind.id}`, group: ind.category, label: `${ind.country} ${ind.name}` }));
-  return [...bondOpts, ...rateOpts, ...assetOpts, ...indOpts];
+  // rate-data.js 일별 시리즈(210개). 홈 카드로 이미 노출되는 한/미/일 10년물은 중복 제외.
+  const shownAsBond = new Set(["ktb10y", "ust0y", "jpy10y", "aud10y"]);
+  const rdOpts = hasRateData
+    ? rateData.series
+        .filter((s) => !shownAsBond.has(s.id))
+        .map((s) => ({ id: `rd:${s.id}`, group: `📄 ${s.group}`, label: s.name }))
+    : [];
+  return [...bondOpts, ...rateOpts, ...assetOpts, ...indOpts, ...rdOpts];
 }
 
 function populateCompareSelects() {
@@ -1665,6 +1717,7 @@ function setupHomeWeekNav() {
 }
 
 function renderHomeView() {
+  refreshBondSeriesFromRateData();
   renderBondCards();
   renderPolicyRateCards();
   renderBondCompareChart();
