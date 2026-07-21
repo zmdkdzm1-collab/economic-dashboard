@@ -1,0 +1,46 @@
+name: Update FedWatch (daily)
+
+on:
+  schedule:
+    # 매일 08:00 KST (= 전날 23:00 UTC)
+    - cron: "0 23 * * *"
+  workflow_dispatch: {} # 수동 실행 버튼
+
+permissions:
+  contents: write
+
+concurrency:
+  group: "update-fedwatch"
+  cancel-in-progress: false
+
+jobs:
+  update:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Fetch CME FedWatch and update data.js
+        env:
+          CME_API_URL: ${{ secrets.CME_API_URL }}
+          CME_API_KEY: ${{ secrets.CME_API_KEY }}
+          CME_AUTH_HEADER: ${{ secrets.CME_AUTH_HEADER }}
+          CME_AUTH_SCHEME: ${{ secrets.CME_AUTH_SCHEME }}
+        run: node scripts/update-fedwatch.mjs
+
+      - name: Commit changes if any
+        run: |
+          if [[ -n "$(git status --porcelain data.js)" ]]; then
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add data.js
+            git commit -m "chore: auto-update FedWatch probabilities from CME"
+            git push
+          else
+            echo "No changes to data.js"
+          fi
