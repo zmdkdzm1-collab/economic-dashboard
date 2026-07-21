@@ -1328,8 +1328,7 @@ const indicators = [
       { title: "Fed Rate Forecast 2026 (PrimeRates)", url: "https://primerates.com/primerate/fed-rate-forecast-2026/" },
       { title: "Goldman Sachs: Outlook for Fed Rate Cuts in 2026", url: "https://www.goldmansachs.com/insights/articles/the-outlook-for-fed-rate-cuts-in-2026" },
     ],
-    // CME FedWatch 공식 페이지(cmegroup.com)는 자바스크립트 렌더링이라 직접 조회가 안 되어,
-    // 동일하게 연방기금금리 선물 가격을 기반으로 확률을 계산하는 Investing.com Fed Rate Monitor 수치로 대체했습니다.
+    // <<FEDWATCH_AUTO_START>> 이 블록은 .github/workflows/update-fedwatch.yml(주 1회)이 CME API로 자동 갱신합니다. 수동 편집 시 주석 마커를 지우지 마세요.
     cmeProbability: {
       meetingDate: "2026-07-29",
       asOf: "2026-07-16 00:15 (EDT)",
@@ -1338,8 +1337,9 @@ const indicators = [
         { label: "3.75~4.00%로 25bp 인상", pct: 12.2 },
         { label: "인하", pct: 0 },
       ],
-      source: { title: "Investing.com Fed Rate Monitor", url: "https://www.investing.com/central-banks/fed-rate-monitor" },
+      source: { title: "CME FedWatch", url: "https://www.cmegroup.com/markets/interest-rates/cme-fedwatch-tool.html" },
     },
+    // <<FEDWATCH_AUTO_END>>
     // 연준 SEP(Summary of Economic Projections) 점도표 중간값(median) 추이 — 연준 공식 발표 및 FRED Blog 기준
     dotPlotHistory: [
       { sepDate: "2025-09-17", end2026: "3.4%", end2027: null, end2028: null },
