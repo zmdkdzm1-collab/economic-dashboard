@@ -3,10 +3,13 @@
 // ============================================================================
 
 const indicatorById = new Map(indicators.map((ind) => [ind.id, ind]));
+// 지표사전과 연결되지 않는 독립 캘린더 이벤트(raw) 조회용
+const rawEventById = new Map(calendarEvents.filter((ev) => ev.raw).map((ev) => [ev.id, ev]));
 
 const state = {
   view: "home", // "home" | "dictionary" | "calendar" | "monetary"
   category: "전체",
+  calImportance: "전체", // 캘린더 중요도 필터: "전체" | "상" | "중" | "하"
   monthStart: getMonthStart(new Date()), // 현재 화면에 보이는 달의 1일
   compareA: "bond_kr_10y",
   compareB: "us_cpi",
@@ -185,6 +188,13 @@ const FLAG_SVGS = {
       <circle cx="24.5" cy="13" r="0.8"/><circle cx="20.5" cy="15.5" r="0.7"/><circle cx="18.5" cy="10.5" r="0.6"/>
     </g>
   </svg>`,
+  영국: `<svg viewBox="0 0 30 20" xmlns="http://www.w3.org/2000/svg">
+    <rect width="30" height="20" fill="#012169"/>
+    <path d="M0,0 L30,20 M30,0 L0,20" stroke="#fff" stroke-width="4"/>
+    <path d="M0,0 L30,20 M30,0 L0,20" stroke="#C8102E" stroke-width="2"/>
+    <path d="M15,0 V20 M0,10 H30" stroke="#fff" stroke-width="6"/>
+    <path d="M15,0 V20 M0,10 H30" stroke="#C8102E" stroke-width="3.6"/>
+  </svg>`,
 };
 
 // ----------------------------------------------------------------------------
@@ -306,10 +316,12 @@ function renderCalendar() {
   document.getElementById("monthLabel").textContent =
     `${state.monthStart.getFullYear()}년 ${state.monthStart.getMonth() + 1}월`;
 
-  const filteredEvents =
-    state.category === "전체"
-      ? calendarEvents
-      : calendarEvents.filter((ev) => indicatorById.get(ev.indicatorId)?.category === state.category);
+  const eventImportance = (ev) => (ev.raw ? ev.importance : indicatorById.get(ev.indicatorId)?.importance);
+  const filteredEvents = calendarEvents.filter((ev) => {
+    if (state.category !== "전체" && indicatorById.get(ev.indicatorId)?.category !== state.category) return false;
+    if (state.calImportance !== "전체" && eventImportance(ev) !== state.calImportance) return false;
+    return true;
+  });
 
   const todayYmd = formatYmd(today);
 
@@ -324,10 +336,17 @@ function renderCalendar() {
 
     const eventsHtml = dayEvents
       .map((ev) => {
-        const ind = indicatorById.get(ev.indicatorId);
-        if (!ind) return "";
         const status = ev.date < todayYmd ? "past" : ev.date === todayYmd ? "today" : "upcoming";
         const statusLabel = status === "past" ? "완료" : status === "today" ? "오늘" : "예정";
+        if (ev.raw) {
+          return `
+          <button class="calendar-event importance-${ev.importance} status-${status}" data-raw="${ev.id}" title="${ev.country} · ${ev.name}">
+            <span class="event-status-badge status-${status}">${statusLabel}</span><span class="event-time">${ev.timeKST}</span>
+            <span class="event-country">${flagIcon(ev.country)}${ev.country}</span> ${ev.name}
+          </button>`;
+        }
+        const ind = indicatorById.get(ev.indicatorId);
+        if (!ind) return "";
         return `
           <button class="calendar-event importance-${ind.importance} status-${status}" data-id="${ind.id}" title="${ind.country} · ${ind.name}">
             <span class="event-status-badge status-${status}">${statusLabel}</span><span class="event-time">${ev.timeKST}</span>
@@ -346,7 +365,9 @@ function renderCalendar() {
   grid.innerHTML = html;
 
   grid.querySelectorAll(".calendar-event").forEach((btn) => {
-    btn.addEventListener("click", () => openModal(btn.dataset.id));
+    btn.addEventListener("click", () =>
+      btn.dataset.raw ? openRawEventModal(btn.dataset.raw) : openModal(btn.dataset.id)
+    );
   });
 }
 
@@ -362,6 +383,13 @@ function setupCalendarNav() {
   document.getElementById("thisMonthBtn").addEventListener("click", () => {
     state.monthStart = getMonthStart(new Date());
     renderCalendar();
+  });
+  document.querySelectorAll("#importanceFilter .imp-filter-btn").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      state.calImportance = btn.dataset.imp;
+      document.querySelectorAll("#importanceFilter .imp-filter-btn").forEach((b) => b.classList.toggle("active", b === btn));
+      renderCalendar();
+    });
   });
 }
 
@@ -771,6 +799,39 @@ function openModal(indicatorId) {
   document.getElementById("detailModal").classList.add("active");
 }
 
+// 지표사전과 연결되지 않는 독립 캘린더 이벤트용 간단 상세 모달
+function openRawEventModal(id) {
+  const ev = rawEventById.get(id);
+  if (!ev) return;
+  const todayYmd = formatYmd(new Date());
+  const status = ev.date < todayYmd ? "past" : ev.date === todayYmd ? "today" : "upcoming";
+  const statusLabel = status === "past" ? "발표 완료" : status === "today" ? "오늘 발표" : "발표 예정";
+  const rows = [
+    ["실제치", ev.actual],
+    ["컨센서스(예상)", ev.consensus],
+    ev.forecast ? ["Forecast", ev.forecast] : null,
+    ["이전치", ev.previous],
+  ]
+    .filter(Boolean)
+    .map(([label, val]) => `<tr><td class="info-label">${label}</td><td>${val ?? "-"}</td></tr>`)
+    .join("");
+
+  document.getElementById("modalContent").innerHTML = `
+    <h2>${ev.name}</h2>
+    <div class="modal-badges">
+      <span class="badge badge-importance-star" title="중요도 ${ev.importance}">${importanceStars(ev.importance)}</span>
+      <span class="event-status-badge status-${status}">${statusLabel}</span>
+    </div>
+    <table class="info-table">
+      <tr><td class="info-label">국가</td><td>${flagIcon(ev.country)} ${ev.country}</td></tr>
+      <tr><td class="info-label">발표일시</td><td>${ev.date} ${ev.timeKST} (KST)</td></tr>
+      ${rows}
+    </table>
+    <div class="description-box">인베스팅닷컴 기준 2026년 7월 경제 캘린더 데이터입니다. 이 항목은 지표사전에 등록되지 않아 시계열 차트는 제공되지 않습니다.</div>
+  `;
+  document.getElementById("detailModal").classList.add("active");
+}
+
 function closeModal() {
   document.getElementById("detailModal").classList.remove("active");
 }
@@ -1126,7 +1187,7 @@ function renderPolicyRateCards() {
   if (!grid) return;
   grid.innerHTML = policyRates
     .map((r) => {
-      const { latest, w, m, y } = computeBondChanges(r.series);
+      const { latest } = computeBondChanges(r.series);
       return `
       <div class="bond-card" data-id="${r.id}">
         <div class="bond-card-head">
@@ -1135,15 +1196,16 @@ function renderPolicyRateCards() {
         </div>
         <div class="bond-name">${r.name}</div>
         <div class="bond-value">${latest.value.toFixed(2)}%</div>
-        <div class="bond-change-grid">
-          ${bondChangeBadge("1주", w)}
-          ${bondChangeBadge("1개월", m)}
-          ${bondChangeBadge("1년", y)}
-        </div>
+        <div class="asset-chart-container" data-chart-id="${r.id}"></div>
         <div class="bond-asof">기준일: ${latest.date}</div>
       </div>`;
     })
     .join("");
+
+  policyRates.forEach((r) => {
+    const container = grid.querySelector(`.asset-chart-container[data-chart-id="${r.id}"]`);
+    if (container) renderAssetCardChart(container, r.series);
+  });
 
   grid.querySelectorAll(".bond-card").forEach((card) => {
     card.addEventListener("click", () => openPolicyRateModal(card.dataset.id));
@@ -1675,6 +1737,19 @@ function renderHomeWeekList() {
       anyEvent = true;
       const eventsHtml = dayEvents
         .map((ev) => {
+          if (ev.raw) {
+            const a = ev.actual ?? "-", c = ev.consensus ?? "-", p = ev.previous ?? "-";
+            return `
+            <button class="home-week-event importance-${ev.importance}" data-raw="${ev.id}">
+              <span class="event-time">${ev.timeKST}</span>
+              <span class="event-name">${flagIcon(ev.country)} ${ev.name}</span>
+              <span class="event-values">
+                <span class="ev-item" title="${a}"><span class="ev-label">실제</span>${a}</span>
+                <span class="ev-item" title="${c}"><span class="ev-label">컨센</span>${c}</span>
+                <span class="ev-item" title="${p}"><span class="ev-label">이전</span>${p}</span>
+              </span>
+            </button>`;
+          }
           const ind = indicatorById.get(ev.indicatorId);
           if (!ind) return "";
           const vals = formatEventValues(ind, ev);
@@ -1701,7 +1776,9 @@ function renderHomeWeekList() {
   const list = document.getElementById("homeWeekList");
   list.innerHTML = anyEvent ? html : `<div class="home-week-empty">이 주에는 등록된 발표 일정이 없습니다.</div>`;
   list.querySelectorAll(".home-week-event").forEach((btn) => {
-    btn.addEventListener("click", () => openModal(btn.dataset.id));
+    btn.addEventListener("click", () =>
+      btn.dataset.raw ? openRawEventModal(btn.dataset.raw) : openModal(btn.dataset.id)
+    );
   });
 }
 
