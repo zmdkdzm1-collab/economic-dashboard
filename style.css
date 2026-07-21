@@ -333,6 +333,8 @@ main {
   border-radius: 10px;
   padding: 6px;
   min-height: 92px;
+  max-height: 300px;
+  overflow-y: auto;
 }
 .calendar-day.is-outside {
   opacity: 0.4;

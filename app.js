@@ -3,6 +3,8 @@
 // ============================================================================
 
 const indicatorById = new Map(indicators.map((ind) => [ind.id, ind]));
+// 지표사전과 연결되지 않는 독립 캘린더 이벤트(raw) 조회용
+const rawEventById = new Map(calendarEvents.filter((ev) => ev.raw).map((ev) => [ev.id, ev]));
 
 const state = {
   view: "home", // "home" | "dictionary" | "calendar" | "monetary"
@@ -185,6 +187,13 @@ const FLAG_SVGS = {
       <circle cx="24.5" cy="13" r="0.8"/><circle cx="20.5" cy="15.5" r="0.7"/><circle cx="18.5" cy="10.5" r="0.6"/>
     </g>
   </svg>`,
+  영국: `<svg viewBox="0 0 30 20" xmlns="http://www.w3.org/2000/svg">
+    <rect width="30" height="20" fill="#012169"/>
+    <path d="M0,0 L30,20 M30,0 L0,20" stroke="#fff" stroke-width="4"/>
+    <path d="M0,0 L30,20 M30,0 L0,20" stroke="#C8102E" stroke-width="2"/>
+    <path d="M15,0 V20 M0,10 H30" stroke="#fff" stroke-width="6"/>
+    <path d="M15,0 V20 M0,10 H30" stroke="#C8102E" stroke-width="3.6"/>
+  </svg>`,
 };
 
 // ----------------------------------------------------------------------------
@@ -324,10 +333,17 @@ function renderCalendar() {
 
     const eventsHtml = dayEvents
       .map((ev) => {
-        const ind = indicatorById.get(ev.indicatorId);
-        if (!ind) return "";
         const status = ev.date < todayYmd ? "past" : ev.date === todayYmd ? "today" : "upcoming";
         const statusLabel = status === "past" ? "완료" : status === "today" ? "오늘" : "예정";
+        if (ev.raw) {
+          return `
+          <button class="calendar-event importance-${ev.importance} status-${status}" data-raw="${ev.id}" title="${ev.country} · ${ev.name}">
+            <span class="event-status-badge status-${status}">${statusLabel}</span><span class="event-time">${ev.timeKST}</span>
+            <span class="event-country">${flagIcon(ev.country)}${ev.country}</span> ${ev.name}
+          </button>`;
+        }
+        const ind = indicatorById.get(ev.indicatorId);
+        if (!ind) return "";
         return `
           <button class="calendar-event importance-${ind.importance} status-${status}" data-id="${ind.id}" title="${ind.country} · ${ind.name}">
             <span class="event-status-badge status-${status}">${statusLabel}</span><span class="event-time">${ev.timeKST}</span>
@@ -346,7 +362,9 @@ function renderCalendar() {
   grid.innerHTML = html;
 
   grid.querySelectorAll(".calendar-event").forEach((btn) => {
-    btn.addEventListener("click", () => openModal(btn.dataset.id));
+    btn.addEventListener("click", () =>
+      btn.dataset.raw ? openRawEventModal(btn.dataset.raw) : openModal(btn.dataset.id)
+    );
   });
 }
 
@@ -768,6 +786,39 @@ function openModal(indicatorId) {
   const fullSeries = buildFullHistory(ind);
   renderHistoryChart(document.getElementById("historyChartContainer"), fullSeries);
 
+  document.getElementById("detailModal").classList.add("active");
+}
+
+// 지표사전과 연결되지 않는 독립 캘린더 이벤트용 간단 상세 모달
+function openRawEventModal(id) {
+  const ev = rawEventById.get(id);
+  if (!ev) return;
+  const todayYmd = formatYmd(new Date());
+  const status = ev.date < todayYmd ? "past" : ev.date === todayYmd ? "today" : "upcoming";
+  const statusLabel = status === "past" ? "발표 완료" : status === "today" ? "오늘 발표" : "발표 예정";
+  const rows = [
+    ["실제치", ev.actual],
+    ["컨센서스(예상)", ev.consensus],
+    ev.forecast ? ["Forecast", ev.forecast] : null,
+    ["이전치", ev.previous],
+  ]
+    .filter(Boolean)
+    .map(([label, val]) => `<tr><td class="info-label">${label}</td><td>${val ?? "-"}</td></tr>`)
+    .join("");
+
+  document.getElementById("modalContent").innerHTML = `
+    <h2>${ev.name}</h2>
+    <div class="modal-badges">
+      <span class="badge badge-importance-star" title="중요도 ${ev.importance}">${importanceStars(ev.importance)}</span>
+      <span class="event-status-badge status-${status}">${statusLabel}</span>
+    </div>
+    <table class="info-table">
+      <tr><td class="info-label">국가</td><td>${flagIcon(ev.country)} ${ev.country}</td></tr>
+      <tr><td class="info-label">발표일시</td><td>${ev.date} ${ev.timeKST} (KST)</td></tr>
+      ${rows}
+    </table>
+    <div class="description-box">인베스팅닷컴 기준 2026년 7월 경제 캘린더 데이터입니다. 이 항목은 지표사전에 등록되지 않아 시계열 차트는 제공되지 않습니다.</div>
+  `;
   document.getElementById("detailModal").classList.add("active");
 }
 
@@ -1675,6 +1726,19 @@ function renderHomeWeekList() {
       anyEvent = true;
       const eventsHtml = dayEvents
         .map((ev) => {
+          if (ev.raw) {
+            const a = ev.actual ?? "-", c = ev.consensus ?? "-", p = ev.previous ?? "-";
+            return `
+            <button class="home-week-event importance-${ev.importance}" data-raw="${ev.id}">
+              <span class="event-time">${ev.timeKST}</span>
+              <span class="event-name">${flagIcon(ev.country)} ${ev.name}</span>
+              <span class="event-values">
+                <span class="ev-item" title="${a}"><span class="ev-label">실제</span>${a}</span>
+                <span class="ev-item" title="${c}"><span class="ev-label">컨센</span>${c}</span>
+                <span class="ev-item" title="${p}"><span class="ev-label">이전</span>${p}</span>
+              </span>
+            </button>`;
+          }
           const ind = indicatorById.get(ev.indicatorId);
           if (!ind) return "";
           const vals = formatEventValues(ind, ev);
@@ -1701,7 +1765,9 @@ function renderHomeWeekList() {
   const list = document.getElementById("homeWeekList");
   list.innerHTML = anyEvent ? html : `<div class="home-week-empty">이 주에는 등록된 발표 일정이 없습니다.</div>`;
   list.querySelectorAll(".home-week-event").forEach((btn) => {
-    btn.addEventListener("click", () => openModal(btn.dataset.id));
+    btn.addEventListener("click", () =>
+      btn.dataset.raw ? openRawEventModal(btn.dataset.raw) : openModal(btn.dataset.id)
+    );
   });
 }
 
