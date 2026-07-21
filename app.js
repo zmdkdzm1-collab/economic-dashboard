@@ -1187,7 +1187,7 @@ function renderPolicyRateCards() {
   if (!grid) return;
   grid.innerHTML = policyRates
     .map((r) => {
-      const { latest, w, m, y } = computeBondChanges(r.series);
+      const { latest } = computeBondChanges(r.series);
       return `
       <div class="bond-card" data-id="${r.id}">
         <div class="bond-card-head">
@@ -1196,15 +1196,16 @@ function renderPolicyRateCards() {
         </div>
         <div class="bond-name">${r.name}</div>
         <div class="bond-value">${latest.value.toFixed(2)}%</div>
-        <div class="bond-change-grid">
-          ${bondChangeBadge("1주", w)}
-          ${bondChangeBadge("1개월", m)}
-          ${bondChangeBadge("1년", y)}
-        </div>
+        <div class="asset-chart-container" data-chart-id="${r.id}"></div>
         <div class="bond-asof">기준일: ${latest.date}</div>
       </div>`;
     })
     .join("");
+
+  policyRates.forEach((r) => {
+    const container = grid.querySelector(`.asset-chart-container[data-chart-id="${r.id}"]`);
+    if (container) renderAssetCardChart(container, r.series);
+  });
 
   grid.querySelectorAll(".bond-card").forEach((card) => {
     card.addEventListener("click", () => openPolicyRateModal(card.dataset.id));
