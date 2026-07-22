@@ -174,13 +174,13 @@
         <textarea id="aiQuestion" rows="3" placeholder="예: 최근 미국과 한국의 10년 국채금리 차이가 환율에 어떤 영향을 줄까? / 지금 물가·고용 데이터로 보면 연준이 인상할 근거가 있어?"></textarea>
         <div class="ai-actions">
           <button id="aiSubmit" class="ai-submit">분석 요청</button>
+          <button id="aiReset" class="ai-reset" hidden>🗑 새 대화</button>
           <span id="aiStatus" class="ai-status"></span>
         </div>
+        <p class="ai-followup-hint">답변 후 이어서 질문하면 대화가 계속 이어집니다. 새로 시작하려면 "새 대화"를 누르세요.</p>
       </div>
 
-      <div id="aiStats" class="ai-stats" hidden></div>
-      <div id="aiChart" class="ai-chart" hidden></div>
-      <div id="aiAnswer" class="ai-answer" hidden></div>
+      <div id="aiConversation" class="ai-conversation"></div>
       <details class="ai-context-details" hidden id="aiContextWrap">
         <summary>AI에게 전달된 데이터 보기</summary>
         <pre id="aiContext" class="ai-context"></pre>
