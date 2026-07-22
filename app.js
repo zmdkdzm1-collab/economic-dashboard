@@ -60,6 +60,45 @@ function enrichIndicatorsFromBloomberg() {
     }
   }
 }
+// 블룸버그에는 있지만 지표사전에 없던 지표들을 새로 생성(실측 이력·차트·캘린더 자동 연결)
+const NEW_BBG_INDICATORS = [
+  { key: "koextoty_index", id: "kr_exports", name: "한국 수출 증가율", nameEn: "Korea Exports YoY", country: "한국", category: "무역", institution: "산업통상자원부·관세청", unit: "% (전년동월비)", frequency: "매월", releasePattern: "매월 1일 무렵", description: "한국의 월간 수출액 전년동월대비 증가율. 반도체 등 주력 품목 경기와 글로벌 수요를 가늠하는 핵심 지표입니다." },
+  { key: "koimtoty_index", id: "kr_imports", name: "한국 수입 증가율", nameEn: "Korea Imports YoY", country: "한국", category: "무역", institution: "산업통상자원부·관세청", unit: "% (전년동월비)", frequency: "매월", releasePattern: "매월 1일 무렵", description: "한국의 월간 수입액 전년동월대비 증가율. 내수·설비투자 수요와 에너지 가격을 반영합니다." },
+  { key: "koeauers_index", id: "kr_unemployment", name: "한국 실업률", nameEn: "Korea Unemployment Rate", country: "한국", category: "고용", institution: "통계청", unit: "%", frequency: "매월", releasePattern: "매월 중순", description: "경제활동인구 중 실업자 비율. 한국 고용시장의 대표 지표입니다." },
+  { key: "kobpcbsa_index", id: "kr_current_account", name: "한국 경상수지", nameEn: "Korea Current Account", country: "한국", category: "무역", institution: "한국은행", unit: "백만 달러", frequency: "매월", releasePattern: "매월 초", description: "상품·서비스·본원소득 등을 포함한 대외거래 수지. 원화 환율과 대외건전성에 영향을 줍니다." },
+  { key: "kocccsi_index", id: "kr_ccsi", name: "한국 소비자심리지수(CCSI)", nameEn: "Korea Consumer Sentiment", country: "한국", category: "소비", institution: "한국은행", unit: "포인트", frequency: "매월", releasePattern: "매월 말", description: "소비자의 경기·생활형편에 대한 심리를 종합한 지수. 100 이상이면 낙관적입니다." },
+  { key: "koppiyoy_index", id: "kr_ppi", name: "한국 생산자물가지수(PPI)", nameEn: "Korea PPI YoY", country: "한국", category: "물가", institution: "한국은행", unit: "% (전년동월비)", frequency: "매월", releasePattern: "매월 하순", description: "생산자가 출하하는 상품·서비스의 가격 변동. 소비자물가(CPI)의 선행지표로 활용됩니다." },
+  { key: "kobsmc_index", id: "kr_bsi", name: "한국 기업경기실사지수(BSI)", nameEn: "Korea Business Survey Index", country: "한국", category: "투자", institution: "한국은행", unit: "포인트", frequency: "매월", releasePattern: "매월 말", description: "기업이 느끼는 경기 체감을 조사한 지수. 100 이상이면 경기를 긍정적으로 봅니다." },
+  { key: "koblthhd_index", id: "kr_household_credit", name: "한국 가계 은행대출 잔액", nameEn: "Korea Household Bank Loans", country: "한국", category: "소비", institution: "한국은행", unit: "십억 원", frequency: "매월", releasePattern: "매월 초·중순", description: "은행권 가계대출 잔액. 가계부채 흐름과 부동산·소비 여력을 보여줍니다." },
+  { key: "kohptyoy_index", id: "kr_house_price", name: "한국 주택가격 동향", nameEn: "Korea House Price YoY", country: "한국", category: "투자", institution: "한국부동산원", unit: "% (전년동월비)", frequency: "매월", releasePattern: "매월 중순", description: "전국 주택 매매가격 전년동월대비 변동률. 가계자산·건설경기와 밀접합니다." },
+  { key: "fdiufdyo_index", id: "us_ppi", name: "미국 생산자물가지수(PPI)", nameEn: "US PPI YoY", country: "미국", category: "물가", institution: "미국 노동통계국(BLS)", unit: "% (전년동월비)", frequency: "매월", releasePattern: "매월 중순", description: "미국 생산자 판매가격 변동. CPI에 앞서 물가 압력을 보여주는 선행지표입니다." },
+  { key: "jolttotl_index", id: "us_jolts", name: "미국 JOLTS 구인건수", nameEn: "US JOLTS Job Openings", country: "미국", category: "고용", institution: "미국 노동통계국(BLS)", unit: "천 명", frequency: "매월", releasePattern: "매월 초", description: "기업의 미충원 구인 건수. 노동수요 강도를 보여주며 Fed가 주시하는 지표입니다." },
+  { key: "adp_chng_index", id: "us_adp", name: "미국 ADP 민간고용", nameEn: "US ADP Employment", country: "미국", category: "고용", institution: "ADP Research", unit: "천 명", frequency: "매월", releasePattern: "고용보고서 이틀 전", description: "민간기업 급여 데이터 기반 고용 증감. 정부 고용보고서(NFP)의 선행 참고치로 쓰입니다." },
+  { key: "ip_chng_index", id: "us_industrial", name: "미국 산업생산", nameEn: "US Industrial Production MoM", country: "미국", category: "성장", institution: "미국 연방준비제도(Fed)", unit: "% (전월대비)", frequency: "매월", releasePattern: "매월 중순", description: "제조·광업·유틸리티의 실질 생산량 변동. 실물경기 흐름을 보여줍니다." },
+  { key: "cptichng_index", id: "us_capacity", name: "미국 설비가동률", nameEn: "US Capacity Utilization", country: "미국", category: "성장", institution: "미국 연방준비제도(Fed)", unit: "%", frequency: "매월", releasePattern: "매월 중순", description: "산업 생산능력 대비 실제 가동 비율. 인플레·투자 압력을 가늠하는 지표입니다." },
+  { key: "euitemum_index", id: "eu_industrial", name: "유로존 산업생산", nameEn: "Euro Area Industrial Production MoM", country: "유럽", category: "성장", institution: "Eurostat", unit: "% (전월대비)", frequency: "매월", releasePattern: "매월 중순", description: "유로존 산업 생산량 변동. 유럽 제조업 경기의 실물 지표입니다." },
+  { key: "cncpiyoy_index", id: "cn_cpi", name: "중국 소비자물가지수(CPI)", nameEn: "China CPI YoY", country: "중국", category: "물가", institution: "중국 국가통계국", unit: "% (전년동월비)", frequency: "매월", releasePattern: "매월 초순", description: "중국 소비자물가 전년동월대비 변동. 디플레 우려와 정책 방향을 가늠하는 지표입니다." },
+  { key: "cheftyoy_index", id: "cn_ppi", name: "중국 생산자물가지수(PPI)", nameEn: "China PPI YoY", country: "중국", category: "물가", institution: "중국 국가통계국", unit: "% (전년동월비)", frequency: "매월", releasePattern: "매월 초순", description: "중국 생산자물가 변동. 글로벌 제조업 물가와 수출입 가격에 파급됩니다." },
+  { key: "jntsmfg_index", id: "jp_tankan", name: "일본 단칸 대기업 제조업지수", nameEn: "Japan Tankan Large Mfg", country: "일본", category: "투자", institution: "일본은행(BOJ)", unit: "포인트", frequency: "분기별", releasePattern: "분기 초(4·7·10·12월)", description: "대기업 제조업의 업황 체감을 조사한 지수. 일본 기업심리의 대표 지표입니다." },
+  { key: "jnlsuctl_index", id: "jp_wages", name: "일본 현금급여총액", nameEn: "Japan Labor Cash Earnings YoY", country: "일본", category: "고용", institution: "후생노동성", unit: "% (전년동월비)", frequency: "매월", releasePattern: "매월 초", description: "노동자 1인당 현금급여 증감. 임금-물가 선순환과 BOJ 정책의 핵심 변수입니다." },
+  { key: "aunagdpc_index", id: "au_gdp", name: "호주 GDP 성장률", nameEn: "Australia GDP QoQ", country: "호주", category: "성장", institution: "호주 통계청(ABS)", unit: "% (전기대비)", frequency: "분기별", releasePattern: "분기 후 약 3개월", description: "호주 실질 국내총생산 전기대비 성장률. 자원경기와 내수를 종합적으로 보여줍니다." },
+  { key: "auitgsb_index", id: "au_trade", name: "호주 무역수지", nameEn: "Australia Trade Balance", country: "호주", category: "무역", institution: "호주 통계청(ABS)", unit: "백만 호주달러", frequency: "매월", releasePattern: "매월 초", description: "상품·서비스 수출입 차액. 철광석 등 원자재 수출 의존도가 높은 호주 경제의 핵심 지표입니다." },
+];
+function createBbgIndicators() {
+  if (typeof bloombergData === "undefined") return;
+  for (const spec of NEW_BBG_INDICATORS) {
+    if (indicatorById.has(spec.id) || !bloombergData.monthly[spec.key]) continue;
+    const ind = {
+      id: spec.id, name: spec.name, nameEn: spec.nameEn, country: spec.country, category: spec.category,
+      institution: spec.institution, unit: spec.unit, importance: "중", frequency: spec.frequency,
+      releasePattern: spec.releasePattern, description: spec.description, hasConsensus: true, history: [],
+    };
+    indicators.push(ind);
+    indicatorById.set(ind.id, ind);
+    INDICATOR_BBG[spec.id] = spec.key;
+  }
+}
+createBbgIndicators();
 enrichIndicatorsFromBloomberg();
 
 const state = {
