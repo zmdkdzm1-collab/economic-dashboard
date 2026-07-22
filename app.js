@@ -351,9 +351,9 @@ function renderCategoryFilter() {
 // ----------------------------------------------------------------------------
 // 탭 전환 (지표 사전 / 캘린더 / 통화정책)
 // ----------------------------------------------------------------------------
-// 홈 탭에는 카테고리 필터바가 필요 없음 (카테고리별 주요 지표 탭과 역할이 겹침)
+// 홈·통화정책·AI 탭에는 카테고리 필터바가 필요 없음 (지표 사전·캘린더에서만 사용)
 function updateCategoryFilterVisibility() {
-  const hidden = state.view === "home" || state.view === "ai";
+  const hidden = state.view === "home" || state.view === "ai" || state.view === "monetary";
   document.getElementById("categoryFilter").style.display = hidden ? "none" : "";
 }
 
