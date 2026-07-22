@@ -1833,7 +1833,37 @@ function renderKeyIndicatorCards() {
     .map((id) => {
       const ind = indicatorById.get(id);
       if (!ind) return "";
-      const latest = (ind.history || [])[0];
+      // history를 날짜 오름차순으로 정렬해 가장 최근 값과 직전 값을 뽑는다
+      const hist = (ind.history || []).filter((h) => h && h.date).slice().sort((a, b) => (a.date < b.date ? -1 : 1));
+      const latest = hist[hist.length - 1];
+      const prev = hist[hist.length - 2];
+      const prevActual = latest && latest.previous != null ? latest.previous : prev ? prev.actual : null;
+      const prevDate = prev ? prev.date : null;
+
+      let deltaHtml = "";
+      if (latest) {
+        const cur = parseNumeric(latest.actual);
+        const pre = parseNumeric(prevActual);
+        if (!isNaN(cur) && !isNaN(pre)) {
+          const diff = cur - pre;
+          const dir = diff > 0 ? "up" : diff < 0 ? "down" : "flat";
+          const arrow = diff > 0 ? "▲" : diff < 0 ? "▼" : "―";
+          const mag = Math.abs(diff);
+          const diffStr = mag >= 100 ? mag.toLocaleString("en-US", { maximumFractionDigits: 0 }) : mag.toFixed(mag < 1 ? 2 : 1);
+          deltaHtml = `<span class="ki-delta ki-delta-${dir}">${arrow} ${diffStr}</span>`;
+        }
+      }
+
+      const prevRow =
+        prevActual != null
+          ? `<div class="ki-prev-row">
+               <span class="ki-prev-label">직전치</span>
+               <span class="ki-prev-value">${prevActual}</span>
+               ${prevDate ? `<span class="ki-prev-period">${formatPeriodLabel(ind, prevDate)}</span>` : ""}
+               ${deltaHtml}
+             </div>`
+          : "";
+
       return `
         <button class="key-indicator-card" data-id="${ind.id}">
           <div class="ki-name">${flagIcon(ind.country)} ${ind.name}</div>
@@ -1842,6 +1872,7 @@ function renderKeyIndicatorCards() {
             <span class="ki-value">${latest ? latest.actual : "-"}</span>
             <span class="ki-period">${latest ? formatPeriodLabel(ind, latest.date) : ""}</span>
           </div>
+          ${prevRow}
         </button>`;
     })
     .join("");
