@@ -2007,7 +2007,12 @@ function renderHomeWeekList() {
   const html = days
     .map((day) => {
       const ymd = formatYmd(day);
-      const dayEvents = calendarEvents.filter((ev) => ev.date === ymd);
+      // 홈 주간 캘린더는 중요도 '상'만 표시 (목록이 너무 길어지는 것 방지)
+      const dayEvents = calendarEvents.filter((ev) => {
+        if (ev.date !== ymd) return false;
+        const imp = ev.raw ? ev.importance : indicatorById.get(ev.indicatorId)?.importance;
+        return imp === "상";
+      });
       if (dayEvents.length === 0) return "";
       anyEvent = true;
       const eventsHtml = dayEvents
