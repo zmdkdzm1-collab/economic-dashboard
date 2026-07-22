@@ -33,6 +33,8 @@ const SERIES = [
     unit: "지수",
     // 品目別 표에서 '総合(all items)' 계열만 선택 — 안 그러면 여러 품목이 섞임
     filters: { cdCat01: "0001" },
+    // 같은 표에 지수/전월비/전년비가 섞여 오므로 지수(항상 50 이상)만 남김
+    minValue: 50,
   },
 ];
 
@@ -71,10 +73,14 @@ async function fetchSeries(cfg) {
   }
   let values = root?.STATISTICAL_DATA?.DATA_INF?.VALUE || [];
   if (!Array.isArray(values)) values = [values];
-  return values
+  let obs = values
     .map((v) => ({ date: estatTimeToDate(v["@time"]), value: Number(v["$"]) }))
-    .filter((p) => Number.isFinite(p.value))
-    .sort((a, b) => (a.date < b.date ? -1 : 1));
+    .filter((p) => Number.isFinite(p.value));
+  if (cfg.minValue != null) obs = obs.filter((p) => p.value >= cfg.minValue);
+  // 날짜 중복 제거(같은 달에 여러 값이 남으면 마지막 것 사용)
+  const byDate = new Map();
+  for (const p of obs.sort((a, b) => (a.date < b.date ? -1 : 1))) byDate.set(p.date, p);
+  return [...byDate.values()];
 }
 
 function jsBlock(obj) {
