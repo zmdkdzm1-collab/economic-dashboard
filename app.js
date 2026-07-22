@@ -2032,9 +2032,10 @@ function collectAllSeries() {
     });
     if (pts.length) list.push({ label, country: country || "", unit: unit || "", points: pts });
   };
-  indicators.forEach((ind) => push(`${ind.country} ${ind.name}`, ind.country, ind.unit, getRealSeriesForIndicator(ind)));
-  bondYields.forEach((b) => push(`${b.country} ${b.name}`, b.country, b.unit, b.series));
-  policyRates.forEach((r) => push(`${r.country} ${r.name}`, r.country, r.unit, r.series));
+  const lbl = (c, n) => (c && n.startsWith(c) ? n : `${c} ${n}`);
+  indicators.forEach((ind) => push(lbl(ind.country, ind.name), ind.country, ind.unit, getRealSeriesForIndicator(ind)));
+  bondYields.forEach((b) => push(lbl(b.country, b.name), b.country, b.unit, b.series));
+  policyRates.forEach((r) => push(lbl(r.country, r.name), r.country, r.unit, r.series));
   marketAssets.forEach((a) => push(a.name, a.country, a.unit, a.series));
   if (typeof bloombergData !== "undefined") {
     Object.values(bloombergData.daily).forEach((s) =>
@@ -2047,7 +2048,25 @@ function collectAllSeries() {
 // 질문과 관련된 시리즈를 점수화해 상위 N개 + 핵심 스냅샷을 텍스트 컨텍스트로 구성
 function collectDataContext(question) {
   const q = (question || "").toLowerCase();
+  // 영문·한글 지표 동의어 그룹: 질문·라벨이 같은 그룹 용어를 포함하면 가점
+  const ALIASES = [
+    ["cpi", "소비자물가", "물가지수", "인플레"],
+    ["gdp", "국내총생산", "성장률"],
+    ["ppi", "생산자물가"],
+    ["pce", "개인소비지출"],
+    ["실업", "실업률", "고용", "unemployment", "nfp", "비농업"],
+    ["기준금리", "정책금리", "fed", "fomc", "ecb", "boj", "rba", "lpr"],
+    ["국채", "국채금리", "10년", "2년", "30년", "yield"],
+    ["환율", "달러", "원달러", "usdkrw", "dxy"],
+    ["무역", "무역수지", "수출", "수입", "수출입", "경상수지"],
+    ["pmi", "제조업", "ism"],
+    ["소매", "소매판매", "retail"],
+    ["주가", "코스피", "kospi", "s&p", "sp500", "500", "지수"],
+    ["유가", "wti", "원유"],
+    ["단칸", "tankan", "심리", "신뢰", "csi", "bsi", "zew", "ifo"],
+  ];
   const all = collectAllSeries();
+  const wantsCore = /근원|core/.test(q);
   const scored = all
     .map((s) => {
       const label = s.label.toLowerCase();
@@ -2056,21 +2075,25 @@ function collectDataContext(question) {
       label.split(/[\s()]+/).forEach((tok) => {
         if (tok.length >= 2 && q.includes(tok.toLowerCase())) score += 2;
       });
-      ["금리", "국채", "환율", "물가", "cpi", "gdp", "고용", "실업", "무역", "수출", "주가", "코스피", "s&p", "유가", "pmi", "기준금리"].forEach(
-        (kw) => {
-          if (q.includes(kw) && label.includes(kw)) score += 1;
-        }
-      );
+      ALIASES.forEach((group) => {
+        const inQ = group.some((t) => q.includes(t));
+        const inLabel = group.some((t) => label.includes(t));
+        if (inQ && inLabel) score += 3;
+      });
+      // 안 물어봤는데 '근원(core)'이면 감점(일반 CPI 우선)
+      if (!wantsCore && /근원|core/.test(label)) score -= 2;
       return { s, score };
     })
     .filter((x) => x.score > 0)
     .sort((a, b) => b.score - a.score)
     .slice(0, 18);
 
-  const fmtSeries = (s) => {
-    const recent = s.points.slice(-8).map((p) => `${p.date}:${p.value}`).join(", ");
+  // 상위 매칭엔 전체 시계열을, 하위엔 요약만 전달(토큰 balance)
+  const fmtSeries = (s, full) => {
+    const pts = full ? s.points.slice(-96) : s.points.slice(-12);
+    const body = pts.map((p) => `${p.date}:${p.value}`).join(", ");
     const latest = s.points[s.points.length - 1];
-    return `「${s.label}」 단위 ${s.unit} | 최신 ${latest.date}=${latest.value} | 최근: ${recent}`;
+    return `「${s.label}」 단위 ${s.unit} | 최신 ${latest.date}=${latest.value} | 시계열(${pts.length}개): ${body}`;
   };
 
   // 핵심 스냅샷(항상 포함): 기준금리·10년물·주요 물가
@@ -2088,10 +2111,10 @@ function collectDataContext(question) {
   if (scored.length === 0) {
     ctx += "(질문에서 특정 지표를 못 찾아 스냅샷 위주로 제공합니다. 필요하면 지표명을 구체적으로 물어보세요.)";
   } else {
-    ctx += scored.map((x) => fmtSeries(x.s)).join("\n");
+    ctx += scored.map((x, i) => fmtSeries(x.s, i < 6)).join("\n");
   }
-  if (ctx.length > 9000) ctx = ctx.slice(0, 9000) + "\n…(이하 생략)";
-  return ctx;
+  if (ctx.length > 18000) ctx = ctx.slice(0, 18000) + "\n…(이하 생략)";
+  return { text: ctx, matched: scored.map((x) => x.s) };
 }
 
 async function callClaude(key, model, system, user) {
@@ -2194,12 +2217,46 @@ function setupAiTab() {
     localStorage.setItem(`ai_key_${provider}`, key);
     localStorage.setItem(`ai_model_${provider}`, model);
 
-    const context = collectDataContext(question);
+    const { text: context, matched } = collectDataContext(question);
     ctxEl.textContent = context;
     ctxWrap.hidden = false;
+
+    // 매칭 지표가 2개 이상이면 대시보드 엔진으로 실제 상관계수 계산 + 비교차트 렌더
+    const chartEl = document.getElementById("aiChart");
+    const statsEl = document.getElementById("aiStats");
+    chartEl.hidden = true;
+    statsEl.hidden = true;
+    let computedNote = "";
+    if (matched.length >= 2) {
+      const A = matched[0];
+      let B = matched[1];
+      // 질문에 2개국 이상 언급되면 A와 다른 국가의 최상위 시리즈를 짝으로
+      const qCountries = ["한국", "미국", "유럽", "중국", "일본", "호주"].filter((c) => question.includes(c));
+      if (qCountries.length >= 2 && A.country) {
+        const alt = matched.slice(1).find((s) => s.country && s.country !== A.country);
+        if (alt) B = alt;
+      }
+      const { months, xs, ys } = alignSeriesByMonth(A.points, B.points);
+      if (months.length >= 3) {
+        const r = pearsonCorrelation(xs, ys);
+        const p2 = correlationPValue(r, months.length);
+        renderComparisonChart(chartEl, months, xs, ys, A.label, B.label);
+        chartEl.hidden = false;
+        statsEl.innerHTML =
+          `<strong>${A.label}</strong> vs <strong>${B.label}</strong> — ` +
+          `상관계수 r=<b>${r.toFixed(3)}</b>, R²=${(r * r).toFixed(3)}, p=${p2 < 0.001 ? "<0.001" : p2.toFixed(3)}, ` +
+          `겹치는 개월수 ${months.length} <span class="ai-stats-note">(대시보드가 직접 계산)</span>`;
+        statsEl.hidden = false;
+        computedNote =
+          `\n\n[대시보드가 실제 계산한 상관관계 — 이 수치를 근거로 해석하세요]\n` +
+          `${A.label} vs ${B.label}: 피어슨 상관계수 r=${r.toFixed(3)}, R²=${(r * r).toFixed(3)}, ` +
+          `p-value=${p2 < 0.001 ? "<0.001" : p2.toFixed(3)}, 겹치는 개월수 n=${months.length} (기간 ${months[0]}~${months[months.length - 1]}).`;
+      }
+    }
+
     const system =
-      "당신은 이 대시보드의 경제 데이터만 근거로 답하는 한국어 경제 애널리스트입니다. 아래 제공된 데이터에 근거해 간결하고 정확하게 분석하세요. 데이터에 없는 사실은 단정하지 말고 '데이터에 없음'이라고 밝히세요. 추정할 때는 추정임을 명시하세요.";
-    const user = `다음은 대시보드 데이터입니다.\n\n${context}\n\n[질문]\n${question}`;
+      "당신은 이 대시보드의 경제 데이터만 근거로 답하는 한국어 경제 애널리스트입니다. 제공된 시계열 데이터와, 있다면 '대시보드가 실제 계산한 상관관계' 수치를 근거로 분석하세요. 상관계수는 임의로 재계산하지 말고 제공된 계산값을 그대로 인용하세요. 데이터 흐름(추세·변곡점·최근 방향)과 그 의미를 구체적으로 설명하고, 데이터에 없는 사실은 '데이터에 없음'이라 밝히세요.";
+    const user = `다음은 대시보드 데이터입니다.\n\n${context}${computedNote}\n\n[질문]\n${question}`;
 
     submitBtn.disabled = true;
     statusEl.textContent = "🤔 분석 중…";
