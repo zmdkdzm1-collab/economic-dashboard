@@ -581,13 +581,84 @@ function renderDotPlotHistory(dotPlotHistory, source) {
     </div>`;
 }
 
+// ----------------------------------------------------------------------------
+// 통화정책 탭 차트: 합성 백필 대신 실측 기준금리(policyRates) 계단형 시계열을 사용
+// ----------------------------------------------------------------------------
+// 회의 지표 id → 실측 정책금리(policyRates) id
+const MONETARY_POLICY_RATE = {
+  kr_bok_meeting: "rate_kr_base",
+  us_fomc_meeting: "rate_us_fed",
+  eu_ecb_meeting: "rate_eu_ecb",
+  jp_boj_meeting: "rate_jp_boj",
+  au_rba_meeting: "rate_au_rba",
+};
+// 중국은 홈 기준금리에서 제외돼 policyRates에 없어, PBOC 1년물 LPR 실측 시계열을 따로 둔다
+const CN_LPR_1Y_SERIES = [
+  { date: "2020-01-01", value: 4.15 },
+  { date: "2020-02-20", value: 4.05 },
+  { date: "2020-04-20", value: 3.85 },
+  { date: "2022-01-20", value: 3.70 },
+  { date: "2022-08-22", value: 3.65 },
+  { date: "2023-06-20", value: 3.55 },
+  { date: "2023-08-21", value: 3.45 },
+  { date: "2024-07-22", value: 3.35 },
+  { date: "2024-10-21", value: 3.10 },
+  { date: "2025-05-20", value: 3.00 },
+];
+
+// 회의 지표 id에 대응하는 실측 기준금리 시계열([{date,value}])을 돌려줌 (없으면 null)
+function getPolicyRateSeries(indId) {
+  const prId = MONETARY_POLICY_RATE[indId];
+  if (prId) {
+    const pr = policyRateById.get(prId);
+    if (pr && pr.series && pr.series.length) return pr.series;
+  }
+  if (indId === "cn_pboc_lpr") return CN_LPR_1Y_SERIES;
+  return null;
+}
+
+// 정책금리는 다음 변경 전까지 값을 유지하므로, 시간축이 균등한 월간 계단형 시계열로 확장
+function buildStepMonthlyHistory(points, endDateStr) {
+  const sorted = points
+    .filter((p) => typeof p.value === "number" && !isNaN(p.value))
+    .slice()
+    .sort((a, b) => (a.date < b.date ? -1 : 1));
+  if (!sorted.length) return [];
+  const end = new Date(endDateStr);
+  const out = [];
+  let cursor = new Date(sorted[0].date.slice(0, 7) + "-01");
+  let idx = 0;
+  while (cursor <= end) {
+    const ymd = formatYmd(cursor);
+    while (idx + 1 < sorted.length && sorted[idx + 1].date <= ymd) idx++;
+    out.push({ date: ymd, actual: sorted[idx].value, consensus: NaN, synthetic: false });
+    cursor.setMonth(cursor.getMonth() + 1);
+  }
+  const lastYmd = formatYmd(end);
+  if (out.length && out[out.length - 1].date !== lastYmd) {
+    out.push({ date: lastYmd, actual: sorted[sorted.length - 1].value, consensus: NaN, synthetic: false });
+  }
+  return out;
+}
+
+// 회의 지표라면 실측 기준금리 계단형 시계열을, 아니면 null을 돌려줌
+function getMonetaryStepSeries(indId) {
+  const prSeries = getPolicyRateSeries(indId);
+  if (!prSeries) return null;
+  return buildStepMonthlyHistory(prSeries, formatYmd(new Date()));
+}
+
 function renderMonetaryView() {
   const grid = document.getElementById("monetaryGrid");
 
   grid.innerHTML = MONETARY_IDS.map((id) => {
     const ind = indicatorById.get(id);
     if (!ind) return "";
+    // "현재" 값: 실측 기준금리가 있으면 최신 정책금리를, 없으면 기존 회의 기록을 사용
+    const prSeries = MONETARY_POLICY_RATE[id] ? getPolicyRateSeries(id) : null;
+    const latestRate = prSeries && prSeries.length ? `${prSeries[prSeries.length - 1].value.toFixed(2)}%` : null;
     const latest = (ind.history || [])[0];
+    const currentText = latestRate || (latest ? latest.actual : "확인 필요");
     const nextEvent = getNextUpcomingEvent(id);
     const minutesInd = MONETARY_MINUTES_IDS[id] ? indicatorById.get(MONETARY_MINUTES_IDS[id]) : null;
 
@@ -603,7 +674,7 @@ function renderMonetaryView() {
           </div>
           <div class="monetary-current-rate">
             <div class="rate-label">현재</div>
-            <div class="rate-value">${latest ? latest.actual : "확인 필요"}</div>
+            <div class="rate-value">${currentText}</div>
           </div>
         </div>
 
@@ -637,7 +708,7 @@ function renderMonetaryView() {
     const ind = indicatorById.get(id);
     if (!ind) return;
     const container = grid.querySelector(`.monetary-chart[data-id="${id}"]`);
-    if (container) renderHistoryChart(container, buildFullHistory(ind));
+    if (container) renderHistoryChart(container, getMonetaryStepSeries(id) || buildFullHistory(ind));
   });
 
   grid.querySelectorAll(".monetary-detail-btn").forEach((btn) => {
@@ -873,6 +944,7 @@ function openModal(indicatorId) {
     : "";
 
   const periodLabel = detectPeriodLabel(ind.unit);
+  const policyStepSeries = getMonetaryStepSeries(ind.id); // 회의 지표면 실측 기준금리 계단형, 아니면 null
 
   document.getElementById("modalContent").innerHTML = `
     <h2>${ind.name}</h2>
@@ -903,7 +975,9 @@ function openModal(indicatorId) {
 
     <h4>2020년 ~ 현재 추이</h4>
     <p class="chart-disclaimer">${
-      ind._bbgEnriched
+      policyStepSeries
+        ? "✅ 중앙은행이 공식 발표한 실측 기준금리(정책금리) 추이입니다. 금리가 실제로 변경된 시점만 반영한 계단형 그래프입니다."
+        : ind._bbgEnriched
         ? `✅ 블룸버그 실측 데이터입니다 (티커 ${ind._bbgTicker}, 2026-07-22 기준). 파란 선은 실제치, 주황 점은 시장 예상치입니다.`
         : "⚠️ 최근 일부 시점을 제외한 과거 구간은 화면 확인용으로 자동 생성된 예시(합성) 데이터입니다. 실제 통계가 아닙니다."
     }</p>
@@ -921,7 +995,7 @@ function openModal(indicatorId) {
     </table>
   `;
 
-  const fullSeries = buildFullHistory(ind);
+  const fullSeries = policyStepSeries || buildFullHistory(ind);
   renderHistoryChart(document.getElementById("historyChartContainer"), fullSeries);
 
   document.getElementById("detailModal").classList.add("active");
