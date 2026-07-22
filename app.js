@@ -353,7 +353,8 @@ function renderCategoryFilter() {
 // ----------------------------------------------------------------------------
 // 홈 탭에는 카테고리 필터바가 필요 없음 (카테고리별 주요 지표 탭과 역할이 겹침)
 function updateCategoryFilterVisibility() {
-  document.getElementById("categoryFilter").style.display = state.view === "home" ? "none" : "";
+  const hidden = state.view === "home" || state.view === "ai";
+  document.getElementById("categoryFilter").style.display = hidden ? "none" : "";
 }
 
 function setupViewTabs() {
@@ -366,6 +367,7 @@ function setupViewTabs() {
       document.getElementById("view-dictionary").classList.toggle("active", state.view === "dictionary");
       document.getElementById("view-calendar").classList.toggle("active", state.view === "calendar");
       document.getElementById("view-monetary").classList.toggle("active", state.view === "monetary");
+      document.getElementById("view-ai").classList.toggle("active", state.view === "ai");
       updateCategoryFilterVisibility();
       if (state.view === "monetary") renderMonetaryView();
     });
@@ -2008,6 +2010,191 @@ function setupThemeToggle() {
   });
 }
 
+// ----------------------------------------------------------------------------
+// AI 분석 탭: 사용자 API 키로 대시보드 데이터를 LLM에게 질의(브라우저 직접 호출, 서버 없음)
+// ----------------------------------------------------------------------------
+const AI_DEFAULT_MODEL = {
+  claude: "claude-3-5-sonnet-latest",
+  gemini: "gemini-1.5-flash",
+  openai: "gpt-4o-mini",
+};
+
+// 모든 시계열을 검색 가능한 단일 목록으로 수집(라벨/국가/단위/최신값/최근값)
+function collectAllSeries() {
+  const list = [];
+  const push = (label, country, unit, points) => {
+    const pts = (points || []).filter((p) => {
+      if (!p || p.value == null) return false;
+      const n = typeof p.value === "number" ? p.value : parseNumeric(p.value);
+      return !isNaN(n);
+    });
+    if (pts.length) list.push({ label, country: country || "", unit: unit || "", points: pts });
+  };
+  indicators.forEach((ind) => push(`${ind.country} ${ind.name}`, ind.country, ind.unit, getRealSeriesForIndicator(ind)));
+  bondYields.forEach((b) => push(`${b.country} ${b.name}`, b.country, b.unit, b.series));
+  policyRates.forEach((r) => push(`${r.country} ${r.name}`, r.country, r.unit, r.series));
+  marketAssets.forEach((a) => push(a.name, a.country, a.unit, a.series));
+  if (typeof bloombergData !== "undefined") {
+    Object.values(bloombergData.daily).forEach((s) =>
+      push(s.label, "", s.unit, (s.series || []).map(([date, value]) => ({ date, value })))
+    );
+  }
+  return list;
+}
+
+// 질문과 관련된 시리즈를 점수화해 상위 N개 + 핵심 스냅샷을 텍스트 컨텍스트로 구성
+function collectDataContext(question) {
+  const q = (question || "").toLowerCase();
+  const all = collectAllSeries();
+  const scored = all
+    .map((s) => {
+      const label = s.label.toLowerCase();
+      let score = 0;
+      if (s.country && q.includes(s.country.toLowerCase())) score += 2;
+      label.split(/[\s()]+/).forEach((tok) => {
+        if (tok.length >= 2 && q.includes(tok.toLowerCase())) score += 2;
+      });
+      ["금리", "국채", "환율", "물가", "cpi", "gdp", "고용", "실업", "무역", "수출", "주가", "코스피", "s&p", "유가", "pmi", "기준금리"].forEach(
+        (kw) => {
+          if (q.includes(kw) && label.includes(kw)) score += 1;
+        }
+      );
+      return { s, score };
+    })
+    .filter((x) => x.score > 0)
+    .sort((a, b) => b.score - a.score)
+    .slice(0, 18);
+
+  const fmtSeries = (s) => {
+    const recent = s.points.slice(-8).map((p) => `${p.date}:${p.value}`).join(", ");
+    const latest = s.points[s.points.length - 1];
+    return `「${s.label}」 단위 ${s.unit} | 최신 ${latest.date}=${latest.value} | 최근: ${recent}`;
+  };
+
+  // 핵심 스냅샷(항상 포함): 기준금리·10년물·주요 물가
+  const snap = [];
+  policyRates.forEach((r) => {
+    const l = r.series[r.series.length - 1];
+    if (l) snap.push(`${r.country} 기준금리 ${l.value}%`);
+  });
+  bondYields.forEach((b) => {
+    const l = b.series[b.series.length - 1];
+    if (l) snap.push(`${b.country} 10Y ${l.value}%`);
+  });
+
+  let ctx = `[핵심 스냅샷] ${snap.join(" · ")}\n\n[질문 관련 데이터]\n`;
+  if (scored.length === 0) {
+    ctx += "(질문에서 특정 지표를 못 찾아 스냅샷 위주로 제공합니다. 필요하면 지표명을 구체적으로 물어보세요.)";
+  } else {
+    ctx += scored.map((x) => fmtSeries(x.s)).join("\n");
+  }
+  if (ctx.length > 9000) ctx = ctx.slice(0, 9000) + "\n…(이하 생략)";
+  return ctx;
+}
+
+async function callClaude(key, model, system, user) {
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json",
+      "x-api-key": key,
+      "anthropic-version": "2023-06-01",
+      "anthropic-dangerous-direct-browser-access": "true",
+    },
+    body: JSON.stringify({ model, max_tokens: 1500, system, messages: [{ role: "user", content: user }] }),
+  });
+  const j = await res.json();
+  if (!res.ok) throw new Error(j.error?.message || `Claude ${res.status}`);
+  return (j.content || []).map((c) => c.text || "").join("");
+}
+async function callOpenAI(key, model, system, user) {
+  const res = await fetch("https://api.openai.com/v1/chat/completions", {
+    method: "POST",
+    headers: { "content-type": "application/json", authorization: `Bearer ${key}` },
+    body: JSON.stringify({ model, max_tokens: 1500, messages: [{ role: "system", content: system }, { role: "user", content: user }] }),
+  });
+  const j = await res.json();
+  if (!res.ok) throw new Error(j.error?.message || `OpenAI ${res.status}`);
+  return j.choices?.[0]?.message?.content || "";
+}
+async function callGemini(key, model, system, user) {
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`;
+  const res = await fetch(url, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ systemInstruction: { parts: [{ text: system }] }, contents: [{ role: "user", parts: [{ text: user }] }] }),
+  });
+  const j = await res.json();
+  if (!res.ok) throw new Error(j.error?.message || `Gemini ${res.status}`);
+  return (j.candidates?.[0]?.content?.parts || []).map((p) => p.text || "").join("");
+}
+
+function setupAiTab() {
+  const providerSel = document.getElementById("aiProvider");
+  const modelInput = document.getElementById("aiModel");
+  const keyInput = document.getElementById("aiKey");
+  const keyToggle = document.getElementById("aiKeyToggle");
+  const questionEl = document.getElementById("aiQuestion");
+  const submitBtn = document.getElementById("aiSubmit");
+  const statusEl = document.getElementById("aiStatus");
+  const answerEl = document.getElementById("aiAnswer");
+  const ctxWrap = document.getElementById("aiContextWrap");
+  const ctxEl = document.getElementById("aiContext");
+  if (!providerSel) return;
+
+  const loadForProvider = () => {
+    const p = providerSel.value;
+    keyInput.value = localStorage.getItem(`ai_key_${p}`) || "";
+    modelInput.value = localStorage.getItem(`ai_model_${p}`) || AI_DEFAULT_MODEL[p];
+  };
+  providerSel.value = localStorage.getItem("ai_provider") || "claude";
+  loadForProvider();
+  providerSel.addEventListener("change", () => {
+    localStorage.setItem("ai_provider", providerSel.value);
+    loadForProvider();
+  });
+  keyInput.addEventListener("change", () => localStorage.setItem(`ai_key_${providerSel.value}`, keyInput.value.trim()));
+  modelInput.addEventListener("change", () => localStorage.setItem(`ai_model_${providerSel.value}`, modelInput.value.trim()));
+  keyToggle.addEventListener("click", () => {
+    keyInput.type = keyInput.type === "password" ? "text" : "password";
+  });
+
+  submitBtn.addEventListener("click", async () => {
+    const provider = providerSel.value;
+    const model = modelInput.value.trim() || AI_DEFAULT_MODEL[provider];
+    const key = keyInput.value.trim();
+    const question = questionEl.value.trim();
+    if (!key) return (statusEl.textContent = "⚠️ API 키를 입력하세요.");
+    if (!question) return (statusEl.textContent = "⚠️ 질문을 입력하세요.");
+    localStorage.setItem(`ai_key_${provider}`, key);
+    localStorage.setItem(`ai_model_${provider}`, model);
+
+    const context = collectDataContext(question);
+    ctxEl.textContent = context;
+    ctxWrap.hidden = false;
+    const system =
+      "당신은 이 대시보드의 경제 데이터만 근거로 답하는 한국어 경제 애널리스트입니다. 아래 제공된 데이터에 근거해 간결하고 정확하게 분석하세요. 데이터에 없는 사실은 단정하지 말고 '데이터에 없음'이라고 밝히세요. 추정할 때는 추정임을 명시하세요.";
+    const user = `다음은 대시보드 데이터입니다.\n\n${context}\n\n[질문]\n${question}`;
+
+    submitBtn.disabled = true;
+    statusEl.textContent = "🤔 분석 중…";
+    answerEl.hidden = true;
+    try {
+      const fn = provider === "claude" ? callClaude : provider === "openai" ? callOpenAI : callGemini;
+      const answer = await fn(key, model, system, user);
+      answerEl.textContent = answer || "(빈 응답)";
+      answerEl.hidden = false;
+      statusEl.textContent = "✅ 완료";
+    } catch (e) {
+      answerEl.textContent = `❌ 오류: ${e.message}\n\n키·모델명을 확인하세요. (CORS 오류라면 브라우저 확장·네트워크 차단 여부도 확인)`;
+      answerEl.hidden = false;
+      statusEl.textContent = "❌ 실패";
+    } finally {
+      submitBtn.disabled = false;
+    }
+  });
+}
+
 function init() {
   safeRun("테마 토글", setupThemeToggle);
   safeRun("카테고리 필터", renderCategoryFilter);
@@ -2017,6 +2204,7 @@ function init() {
   safeRun("캘린더", renderCalendar);
   safeRun("캘린더 내비게이션", setupCalendarNav);
   safeRun("상세 모달", setupModal);
+  safeRun("AI 분석 탭", setupAiTab);
 }
 
 init();
