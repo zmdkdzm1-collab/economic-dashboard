@@ -6,6 +6,62 @@ const indicatorById = new Map(indicators.map((ind) => [ind.id, ind]));
 // 지표사전과 연결되지 않는 독립 캘린더 이벤트(raw) 조회용
 const rawEventById = new Map(calendarEvents.filter((ev) => ev.raw).map((ev) => [ev.id, ev]));
 
+// ----------------------------------------------------------------------------
+// 블룸버그 월별 실측치로 지표사전(발표이력·차트)·캘린더(차기 발표) 실데이터화
+// ----------------------------------------------------------------------------
+const INDICATOR_BBG = {
+  us_nfp: "nfp_tch_index", us_unemployment: "usurtot_index", us_cpi: "cpi_yoy_index",
+  us_core_cpi: "cpi_xyoy_index", us_pce: "pce_defy_index", us_gdp: "gdp_cqoq_index",
+  us_ism_mfg: "napmpmi_index", us_ism_svc: "napmnmi_index", us_retail_sales: "rstamom_index",
+  us_cb_consumer: "concconf_index", us_umich_consumer: "conssent_index",
+  us_durable_goods: "dgnochng_index", us_housing_starts: "nhspstot_index",
+  eu_cpi: "eccpemuy_index", eu_gdp: "eugnemuq_index", de_ifo: "grifpbus_index",
+  de_zew: "grzewi_index", eu_unemployment: "umrtemu_index", cn_gdp: "cngdpyoy_index",
+  cn_pmi_official: "cpmindx_index", cn_retail_sales: "cnrscyoy_index", cn_trade: "cnfrbal_index",
+  jp_gdp: "jgdpagdp_index", jp_trade: "jntbal_index", jp_cpi: "jncpiyoy_index",
+  jp_unemployment: "jnue_index", kr_trade: "kotrbal_index", kr_cpi: "kocpiyoy_index",
+  kr_gdp: "kogdpqoq_index", kr_ip: "koipimom_index", au_cpi: "rbcptriy_index",
+  au_unemployment: "aulfunem_index", au_retail_sales: "aurstysa_index",
+};
+function bbgFmt(v, unit) {
+  if (v == null) return null;
+  return (unit || "").includes("%") ? `${v}%` : String(v);
+}
+function parseBbgDateTime(s) {
+  if (!s) return null;
+  const [datePart, timePart] = String(s).split(" ");
+  const date = datePart.replace(/\//g, "-");
+  const time = timePart ? timePart.slice(0, 5) : "";
+  return { date, time };
+}
+function enrichIndicatorsFromBloomberg() {
+  if (typeof bloombergData === "undefined") return;
+  const todayYmd = formatYmd(new Date());
+  for (const [indId, key] of Object.entries(INDICATOR_BBG)) {
+    const ind = indicatorById.get(indId);
+    const bs = bloombergData.monthly[key];
+    if (!ind || !bs) continue;
+    const relByDate = Object.fromEntries((bs.releases || []).map((r) => [r.date, r]));
+    const pts = (bs.series || []).filter(([d]) => d >= "2020-01-01");
+    ind.history = pts.map(([date, actual], i) => ({
+      date,
+      actual: bbgFmt(actual, bs.unit),
+      consensus: relByDate[date] ? bbgFmt(relByDate[date].survey, bs.unit) : null,
+      previous: i > 0 ? bbgFmt(pts[i - 1][1], bs.unit) : null,
+    }));
+    ind.hasConsensus = true;
+    ind._bbgEnriched = true;
+    ind._bbgTicker = bs.ticker;
+    if (bs.survey_latest != null) ind.nextConsensus = bbgFmt(bs.survey_latest, bs.unit);
+    // 캘린더에 차기 발표 추가(미래 것만)
+    const nr = parseBbgDateTime(bs.nextRelease);
+    if (nr && nr.date >= todayYmd && !calendarEvents.some((ev) => ev.date === nr.date && ev.indicatorId === indId)) {
+      calendarEvents.push({ date: nr.date, time: nr.time ? `${nr.time} (현지)` : "", timeKST: nr.time || "", indicatorId: indId });
+    }
+  }
+}
+enrichIndicatorsFromBloomberg();
+
 const state = {
   view: "home", // "home" | "dictionary" | "calendar" | "monetary"
   category: "전체",
@@ -752,7 +808,9 @@ function openModal(indicatorId) {
   const ind = indicatorById.get(indicatorId);
   if (!ind) return;
 
-  const historyRows = (ind.history || [])
+  const historyRows = [...(ind.history || [])]
+    .sort((a, b) => (a.date < b.date ? 1 : -1)) // 최근순
+    .slice(0, 24)
     .map(
       (h) => `
       <tr>
@@ -803,7 +861,11 @@ function openModal(indicatorId) {
     ${renderSpeechTimeline(ind.officialStatements)}
 
     <h4>2020년 ~ 현재 추이</h4>
-    <p class="chart-disclaimer">⚠️ 최근 일부 시점을 제외한 과거 구간은 화면 확인용으로 자동 생성된 예시(합성) 데이터입니다. 실제 통계가 아닙니다.</p>
+    <p class="chart-disclaimer">${
+      ind._bbgEnriched
+        ? `✅ 블룸버그 실측 데이터입니다 (티커 ${ind._bbgTicker}, 2026-07-22 기준). 파란 선은 실제치, 주황 점은 시장 예상치입니다.`
+        : "⚠️ 최근 일부 시점을 제외한 과거 구간은 화면 확인용으로 자동 생성된 예시(합성) 데이터입니다. 실제 통계가 아닙니다."
+    }</p>
     <div id="historyChartContainer"></div>
 
     <h4>최근 발표 내역 상세 ${ind.hasConsensus ? "" : "(컨센서스 없음)"}${periodLabel ? ` — 값 기준: ${periodLabel}` : ""}</h4>
