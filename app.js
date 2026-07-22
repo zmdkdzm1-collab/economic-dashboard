@@ -1352,6 +1352,21 @@ function getSeriesById(compId) {
     const label = s.country ? `${s.country} ${s.name}` : s.name;
     return { label, unit: s.unit, points: rateSeriesPoints(s.id) };
   }
+  if (compId.startsWith("fred:")) {
+    const s = typeof fredReference !== "undefined" && fredReference.series[compId.slice(5)];
+    if (!s) return null;
+    return { label: `${s.label} (FRED)`, unit: s.unit, points: s.recent };
+  }
+  if (compId.startsWith("ecos:")) {
+    const s = typeof ecosReference !== "undefined" && ecosReference.series[compId.slice(5)];
+    if (!s) return null;
+    return { label: `${s.label} (ECOS)`, unit: s.unit, points: s.recent };
+  }
+  if (compId.startsWith("estat:")) {
+    const s = typeof estatReference !== "undefined" && estatReference.series[compId.slice(6)];
+    if (!s) return null;
+    return { label: `${s.label} (e-Stat)`, unit: s.unit, points: s.recent };
+  }
   const ind = indicatorById.get(compId.slice(4));
   if (!ind) return null;
   return { label: `${ind.country} ${ind.name}`, unit: ind.unit, points: getRealSeriesForIndicator(ind) };
@@ -1372,7 +1387,18 @@ function getComparableOptions() {
         .filter((s) => !shownAsBond.has(s.id))
         .map((s) => ({ id: `rd:${s.id}`, group: `📄 ${s.group}`, label: s.name }))
     : [];
-  return [...bondOpts, ...rateOpts, ...assetOpts, ...indOpts, ...rdOpts];
+  // 공식 통계기관 실데이터(자동 갱신) — 교차검증용
+  const refOpts = [];
+  const addRef = (ref, prefix, group) => {
+    if (ref && ref.series)
+      Object.entries(ref.series).forEach(([k, s]) => {
+        if (s.recent && s.recent.length >= 2) refOpts.push({ id: `${prefix}:${k}`, group, label: s.label });
+      });
+  };
+  addRef(typeof fredReference !== "undefined" && fredReference, "fred", "📊 FRED (미국)");
+  addRef(typeof ecosReference !== "undefined" && ecosReference, "ecos", "📊 ECOS (한국)");
+  addRef(typeof estatReference !== "undefined" && estatReference, "estat", "📊 e-Stat (일본)");
+  return [...bondOpts, ...rateOpts, ...assetOpts, ...indOpts, ...rdOpts, ...refOpts];
 }
 
 function populateCompareSelects() {

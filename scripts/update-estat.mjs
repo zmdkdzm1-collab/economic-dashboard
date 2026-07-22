@@ -28,10 +28,11 @@ const APP_ID = process.env.ESTAT_APP_ID;
 const SERIES = [
   {
     key: "jp_cpi",
-    statsDataId: "0003427113", // 消費者物価指数 全国 (총합) — 첫 실행 시 확정
-    label: "일본 소비자물가지수(전국, 총합)",
+    statsDataId: "0003427113", // 消費者物価指数 2020年基準 全国 品目別
+    label: "일본 소비자물가지수(전국, 총합, 2020=100)",
     unit: "지수",
-    filters: {}, // 예: { cdCat01: "0001" }
+    // 品目別 표에서 '総合(all items)' 계열만 선택 — 안 그러면 여러 품목이 섞임
+    filters: { cdCat01: "0001" },
   },
 ];
 
