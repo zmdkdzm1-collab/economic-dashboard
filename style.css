@@ -1436,3 +1436,32 @@ main {
   background: var(--bg-card); border: 1px solid var(--border); border-radius: 10px;
   padding: 14px; margin-bottom: 12px;
 }
+
+/* AI 탭 - 대화형 UI */
+.ai-reset {
+  background: var(--bg-card); border: 1px solid var(--border); border-radius: 8px;
+  padding: 8px 14px; font-size: 0.85rem; cursor: pointer; color: var(--text);
+}
+.ai-reset:hover { border-color: var(--accent); }
+.ai-followup-hint { font-size: 0.76rem; color: var(--text-muted); margin: 8px 0 0; }
+.ai-conversation { display: flex; flex-direction: column; gap: 12px; margin: 14px 0; }
+.ai-turn { display: flex; }
+.ai-turn-user { justify-content: flex-end; }
+.ai-turn-ai { justify-content: flex-start; }
+.ai-bubble { max-width: 92%; border-radius: 12px; padding: 12px 15px; line-height: 1.6; font-size: 0.92rem; }
+.ai-bubble-user {
+  background: var(--accent); color: #fff; white-space: pre-wrap; border-bottom-right-radius: 4px;
+}
+.ai-bubble-ai {
+  background: var(--bg-card); border: 1px solid var(--border); color: var(--text);
+  border-bottom-left-radius: 4px; width: 100%;
+}
+.ai-answer-text { white-space: pre-wrap; }
+.ai-bubble-ai .ai-stats {
+  background: var(--accent-bg); border: 1px solid var(--border); border-radius: 8px;
+  padding: 10px 12px; margin-bottom: 10px; font-size: 0.88rem;
+}
+.ai-bubble-ai .ai-chart {
+  background: var(--bg-alt); border: 1px solid var(--border); border-radius: 8px;
+  padding: 12px; margin-bottom: 10px;
+}

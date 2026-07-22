@@ -2021,6 +2021,28 @@ const AI_MODELS = {
 };
 const AI_CUSTOM = "__custom__";
 const AI_MAX_TOKENS = 4000;
+// 영문·한글 지표 동의어(개념) 그룹 — 매칭 점수 + 비교짝 선택에 공용
+const AI_ALIASES = [
+  ["cpi", "소비자물가", "물가지수", "인플레"],
+  ["gdp", "국내총생산", "성장률"],
+  ["ppi", "생산자물가"],
+  ["pce", "개인소비지출"],
+  ["실업", "실업률", "고용", "unemployment", "nfp", "비농업"],
+  ["기준금리", "정책금리", "fed", "fomc", "ecb", "boj", "rba", "lpr"],
+  ["국채", "국채금리", "10년", "2년", "30년", "yield"],
+  ["환율", "달러", "원달러", "usdkrw", "dxy"],
+  ["무역", "무역수지", "수출", "수입", "수출입", "경상수지"],
+  ["pmi", "제조업", "ism"],
+  ["소매", "소매판매", "retail"],
+  ["주가", "코스피", "kospi", "s&p", "sp500", "500", "지수"],
+  ["유가", "wti", "원유"],
+  ["단칸", "tankan", "심리", "신뢰", "csi", "bsi", "zew", "ifo"],
+];
+// 해당 텍스트가 속하는 개념 그룹(배열 참조) 목록
+function aiConceptsOf(text) {
+  const t = (text || "").toLowerCase();
+  return AI_ALIASES.filter((g) => g.some((term) => t.includes(term)));
+}
 
 // 모든 시계열을 검색 가능한 단일 목록으로 수집(라벨/국가/단위/최신값/최근값)
 function collectAllSeries() {
@@ -2049,23 +2071,6 @@ function collectAllSeries() {
 // 질문과 관련된 시리즈를 점수화해 상위 N개 + 핵심 스냅샷을 텍스트 컨텍스트로 구성
 function collectDataContext(question) {
   const q = (question || "").toLowerCase();
-  // 영문·한글 지표 동의어 그룹: 질문·라벨이 같은 그룹 용어를 포함하면 가점
-  const ALIASES = [
-    ["cpi", "소비자물가", "물가지수", "인플레"],
-    ["gdp", "국내총생산", "성장률"],
-    ["ppi", "생산자물가"],
-    ["pce", "개인소비지출"],
-    ["실업", "실업률", "고용", "unemployment", "nfp", "비농업"],
-    ["기준금리", "정책금리", "fed", "fomc", "ecb", "boj", "rba", "lpr"],
-    ["국채", "국채금리", "10년", "2년", "30년", "yield"],
-    ["환율", "달러", "원달러", "usdkrw", "dxy"],
-    ["무역", "무역수지", "수출", "수입", "수출입", "경상수지"],
-    ["pmi", "제조업", "ism"],
-    ["소매", "소매판매", "retail"],
-    ["주가", "코스피", "kospi", "s&p", "sp500", "500", "지수"],
-    ["유가", "wti", "원유"],
-    ["단칸", "tankan", "심리", "신뢰", "csi", "bsi", "zew", "ifo"],
-  ];
   const all = collectAllSeries();
   const wantsCore = /근원|core/.test(q);
   const scored = all
@@ -2076,7 +2081,7 @@ function collectDataContext(question) {
       label.split(/[\s()]+/).forEach((tok) => {
         if (tok.length >= 2 && q.includes(tok.toLowerCase())) score += 2;
       });
-      ALIASES.forEach((group) => {
+      AI_ALIASES.forEach((group) => {
         const inQ = group.some((t) => q.includes(t));
         const inLabel = group.some((t) => label.includes(t));
         if (inQ && inLabel) score += 3;
@@ -2118,7 +2123,8 @@ function collectDataContext(question) {
   return { text: ctx, matched: scored.map((x) => x.s) };
 }
 
-async function callClaude(key, model, system, user) {
+// messages: [{ role: "user"|"assistant", content }] 형태의 대화 이력
+async function callClaude(key, model, system, messages) {
   const res = await fetch("https://api.anthropic.com/v1/messages", {
     method: "POST",
     headers: {
@@ -2127,34 +2133,34 @@ async function callClaude(key, model, system, user) {
       "anthropic-version": "2023-06-01",
       "anthropic-dangerous-direct-browser-access": "true",
     },
-    body: JSON.stringify({ model, max_tokens: AI_MAX_TOKENS, system, messages: [{ role: "user", content: user }] }),
+    body: JSON.stringify({ model, max_tokens: AI_MAX_TOKENS, system, messages }),
   });
   const j = await res.json();
   if (!res.ok) throw new Error(j.error?.message || `Claude ${res.status}`);
   return (j.content || []).map((c) => c.text || "").join("");
 }
-async function callOpenAI(key, model, system, user) {
+async function callOpenAI(key, model, system, messages) {
   const res = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: { "content-type": "application/json", authorization: `Bearer ${key}` },
     body: JSON.stringify({
       model,
       max_completion_tokens: AI_MAX_TOKENS,
-      messages: [{ role: "system", content: system }, { role: "user", content: user }],
+      messages: [{ role: "system", content: system }, ...messages],
     }),
   });
   const j = await res.json();
   if (!res.ok) throw new Error(j.error?.message || `OpenAI ${res.status}`);
   return j.choices?.[0]?.message?.content || "";
 }
-async function callGemini(key, model, system, user) {
+async function callGemini(key, model, system, messages) {
   const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${encodeURIComponent(key)}`;
   const res = await fetch(url, {
     method: "POST",
     headers: { "content-type": "application/json" },
     body: JSON.stringify({
       systemInstruction: { parts: [{ text: system }] },
-      contents: [{ role: "user", parts: [{ text: user }] }],
+      contents: messages.map((m) => ({ role: m.role === "assistant" ? "model" : "user", parts: [{ text: m.content }] })),
       // 구글 검색 그라운딩: 대시보드 데이터 + 실시간 웹 정보 결합
       tools: [{ google_search: {} }],
       generationConfig: { maxOutputTokens: AI_MAX_TOKENS },
@@ -2173,11 +2179,42 @@ function setupAiTab() {
   const keyToggle = document.getElementById("aiKeyToggle");
   const questionEl = document.getElementById("aiQuestion");
   const submitBtn = document.getElementById("aiSubmit");
+  const resetBtn = document.getElementById("aiReset");
   const statusEl = document.getElementById("aiStatus");
-  const answerEl = document.getElementById("aiAnswer");
+  const convEl = document.getElementById("aiConversation");
   const ctxWrap = document.getElementById("aiContextWrap");
   const ctxEl = document.getElementById("aiContext");
   if (!providerSel) return;
+
+  let aiConversation = []; // API로 보내는 대화 이력 [{role, content}]
+  const aiAppendUser = (q) => {
+    const el = document.createElement("div");
+    el.className = "ai-turn ai-turn-user";
+    el.innerHTML = `<div class="ai-bubble ai-bubble-user"></div>`;
+    el.querySelector(".ai-bubble-user").textContent = q;
+    convEl.appendChild(el);
+    el.scrollIntoView({ block: "nearest" });
+  };
+  const aiAppendAssistant = () => {
+    const el = document.createElement("div");
+    el.className = "ai-turn ai-turn-ai";
+    el.innerHTML =
+      `<div class="ai-bubble ai-bubble-ai">` +
+      `<div class="ai-stats" hidden></div><div class="ai-chart" hidden></div>` +
+      `<div class="ai-answer-text">🤔 분석 중…</div></div>`;
+    convEl.appendChild(el);
+    el.scrollIntoView({ block: "nearest" });
+    return { stats: el.querySelector(".ai-stats"), chart: el.querySelector(".ai-chart"), text: el.querySelector(".ai-answer-text") };
+  };
+  resetBtn.addEventListener("click", () => {
+    aiConversation = [];
+    convEl.innerHTML = "";
+    resetBtn.hidden = true;
+    ctxWrap.hidden = true;
+    statusEl.textContent = "";
+    questionEl.value = "";
+    questionEl.focus();
+  });
 
   const effectiveModel = () => (modelSel.value === AI_CUSTOM ? modelInput.value.trim() : modelSel.value);
   const syncCustomVisibility = () => {
@@ -2232,32 +2269,37 @@ function setupAiTab() {
     ctxEl.textContent = context;
     ctxWrap.hidden = false;
 
-    // 매칭 지표가 2개 이상이면 대시보드 엔진으로 실제 상관계수 계산 + 비교차트 렌더
-    const chartEl = document.getElementById("aiChart");
-    const statsEl = document.getElementById("aiStats");
-    chartEl.hidden = true;
-    statsEl.hidden = true;
+    // 매칭 지표가 2개 이상이면 대시보드 엔진으로 실제 상관계수 계산 + 비교차트(이번 턴에 렌더)
     let computedNote = "";
+    let chartData = null; // { months, xs, ys, labelA, labelB, statsHTML }
     if (matched.length >= 2) {
       const A = matched[0];
       let B = matched[1];
-      // 질문에 2개국 이상 언급되면 A와 다른 국가의 최상위 시리즈를 짝으로
       const qCountries = ["한국", "미국", "유럽", "중국", "일본", "호주"].filter((c) => question.includes(c));
+      const qConcepts = aiConceptsOf(question);
       if (qCountries.length >= 2 && A.country) {
         const alt = matched.slice(1).find((s) => s.country && s.country !== A.country);
         if (alt) B = alt;
+      } else if (qConcepts.length >= 2) {
+        // 질문이 명시한 개념 중 A가 커버하지 않는 것을 다루는 최상위 시리즈
+        const aConcepts = aiConceptsOf(A.label);
+        const wanted = qConcepts.filter((g) => !aConcepts.includes(g));
+        if (wanted.length) {
+          const alt = matched.slice(1).find((s) => aiConceptsOf(s.label).some((g) => wanted.includes(g)));
+          if (alt) B = alt;
+        }
       }
       const { months, xs, ys } = alignSeriesByMonth(A.points, B.points);
       if (months.length >= 3) {
         const r = pearsonCorrelation(xs, ys);
         const p2 = correlationPValue(r, months.length);
-        renderComparisonChart(chartEl, months, xs, ys, A.label, B.label);
-        chartEl.hidden = false;
-        statsEl.innerHTML =
-          `<strong>${A.label}</strong> vs <strong>${B.label}</strong> — ` +
-          `상관계수 r=<b>${r.toFixed(3)}</b>, R²=${(r * r).toFixed(3)}, p=${p2 < 0.001 ? "<0.001" : p2.toFixed(3)}, ` +
-          `겹치는 개월수 ${months.length} <span class="ai-stats-note">(대시보드가 직접 계산)</span>`;
-        statsEl.hidden = false;
+        chartData = {
+          months, xs, ys, labelA: A.label, labelB: B.label,
+          statsHTML:
+            `<strong>${A.label}</strong> vs <strong>${B.label}</strong> — ` +
+            `상관계수 r=<b>${r.toFixed(3)}</b>, R²=${(r * r).toFixed(3)}, p=${p2 < 0.001 ? "<0.001" : p2.toFixed(3)}, ` +
+            `겹치는 개월수 ${months.length} <span class="ai-stats-note">(대시보드가 직접 계산)</span>`,
+        };
         computedNote =
           `\n\n[대시보드가 실제 계산한 상관관계 — 이 수치를 근거로 해석하세요]\n` +
           `${A.label} vs ${B.label}: 피어슨 상관계수 r=${r.toFixed(3)}, R²=${(r * r).toFixed(3)}, ` +
@@ -2273,23 +2315,37 @@ function setupAiTab() {
       "3) 대시보드 데이터에 근거한 사실과 당신의 일반지식·추론을 명확히 구분해 표기할 것(예: '데이터 기준…', '일반적으로…', '추정하건대…').\n" +
       "4) 제공된 상관계수 등 계산값은 그대로 인용하고 임의로 재계산하지 말 것.\n" +
       "5) 한국어로 근거와 논리를 갖춰 충분히 상세하게 서술할 것.";
-    const user = `다음은 대시보드 데이터입니다.\n\n${context}${computedNote}\n\n[질문]\n${question}`;
+    // 첫 턴에만 데이터 안내 문구, 이후 턴엔 관련 데이터만 덧붙임
+    const turnPrefix = aiConversation.length === 0 ? "다음은 대시보드 데이터입니다.\n\n" : "[이어지는 질문 — 참고 데이터]\n";
+    const userContent = `${turnPrefix}${context}${computedNote}\n\n[질문]\n${question}`;
 
+    aiAppendUser(question);
+    const bubble = aiAppendAssistant();
+    if (chartData) {
+      bubble.stats.innerHTML = chartData.statsHTML;
+      bubble.stats.hidden = false;
+      renderComparisonChart(bubble.chart, chartData.months, chartData.xs, chartData.ys, chartData.labelA, chartData.labelB);
+      bubble.chart.hidden = false;
+    }
+
+    const outgoing = [...aiConversation, { role: "user", content: userContent }];
     submitBtn.disabled = true;
+    resetBtn.hidden = false;
     statusEl.textContent = "🤔 분석 중…";
-    answerEl.hidden = true;
+    questionEl.value = "";
     try {
       const fn = provider === "claude" ? callClaude : provider === "openai" ? callOpenAI : callGemini;
-      const answer = await fn(key, model, system, user);
-      answerEl.textContent = answer || "(빈 응답)";
-      answerEl.hidden = false;
-      statusEl.textContent = "✅ 완료";
+      const answer = await fn(key, model, system, outgoing);
+      bubble.text.textContent = answer || "(빈 응답)";
+      // 이력 확정(성공한 턴만 유지)
+      aiConversation = [...outgoing, { role: "assistant", content: answer || "" }];
+      statusEl.textContent = "✅ 완료 — 이어서 질문할 수 있어요";
     } catch (e) {
-      answerEl.textContent = `❌ 오류: ${e.message}\n\n키·모델명을 확인하세요. (CORS 오류라면 브라우저 확장·네트워크 차단 여부도 확인)`;
-      answerEl.hidden = false;
+      bubble.text.textContent = `❌ 오류: ${e.message}\n\n키·모델명을 확인하세요. (CORS 오류라면 브라우저 확장·네트워크 차단 여부도 확인)`;
       statusEl.textContent = "❌ 실패";
     } finally {
       submitBtn.disabled = false;
+      bubble.text.scrollIntoView({ block: "nearest" });
     }
   });
 }
