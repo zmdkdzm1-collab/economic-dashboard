@@ -25,7 +25,7 @@ const API_KEY = process.env.ECOS_API_KEY;
 
 // 가져올 한국 시계열. cycle: D(일)/M(월)/Q(분기)/A(년)
 const SERIES = [
-  { key: "kr_base_rate", statCode: "722Y001", itemCode: "0101000", cycle: "M", label: "한국은행 기준금리", unit: "%", yearsBack: 6 },
+  { key: "kr_base_rate", statCode: "722Y001", itemCode: "0101000", cycle: "D", label: "한국은행 기준금리", unit: "%", yearsBack: 3 },
   { key: "kr_10y", statCode: "817Y002", itemCode: "010210000", cycle: "D", label: "국고채 10년", unit: "%", yearsBack: 2 },
   { key: "fx_usdkrw", statCode: "731Y001", itemCode: "0000001", cycle: "D", label: "원/달러(매매기준율)", unit: "원", yearsBack: 2 },
   { key: "kr_cpi", statCode: "901Y009", itemCode: "0", cycle: "M", label: "소비자물가지수(2020=100)", unit: "지수", yearsBack: 6 },
