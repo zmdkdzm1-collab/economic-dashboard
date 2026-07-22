@@ -2015,11 +2015,12 @@ function setupThemeToggle() {
 // ----------------------------------------------------------------------------
 // 제공사별 선택 가능한 모델(첫 항목이 기본값). 목록에 없으면 "직접 입력" 사용.
 const AI_MODELS = {
-  claude: ["claude-3-5-sonnet-latest", "claude-3-5-haiku-latest", "claude-3-opus-latest"],
-  gemini: ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-2.0-flash"],
-  openai: ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-3.5-turbo"],
+  claude: ["claude-opus-4-8", "claude-sonnet-5", "claude-haiku-4-5-20251001"],
+  gemini: ["gemini-3.6-flash", "gemini-2.0-flash", "gemini-1.5-pro"],
+  openai: ["gpt-5.6", "gpt-4o", "gpt-4o-mini"],
 };
 const AI_CUSTOM = "__custom__";
+const AI_MAX_TOKENS = 4000;
 
 // 모든 시계열을 검색 가능한 단일 목록으로 수집(라벨/국가/단위/최신값/최근값)
 function collectAllSeries() {
@@ -2111,9 +2112,9 @@ function collectDataContext(question) {
   if (scored.length === 0) {
     ctx += "(질문에서 특정 지표를 못 찾아 스냅샷 위주로 제공합니다. 필요하면 지표명을 구체적으로 물어보세요.)";
   } else {
-    ctx += scored.map((x, i) => fmtSeries(x.s, i < 6)).join("\n");
+    ctx += scored.map((x, i) => fmtSeries(x.s, i < 8)).join("\n");
   }
-  if (ctx.length > 18000) ctx = ctx.slice(0, 18000) + "\n…(이하 생략)";
+  if (ctx.length > 26000) ctx = ctx.slice(0, 26000) + "\n…(이하 생략)";
   return { text: ctx, matched: scored.map((x) => x.s) };
 }
 
@@ -2126,7 +2127,7 @@ async function callClaude(key, model, system, user) {
       "anthropic-version": "2023-06-01",
       "anthropic-dangerous-direct-browser-access": "true",
     },
-    body: JSON.stringify({ model, max_tokens: 1500, system, messages: [{ role: "user", content: user }] }),
+    body: JSON.stringify({ model, max_tokens: AI_MAX_TOKENS, system, messages: [{ role: "user", content: user }] }),
   });
   const j = await res.json();
   if (!res.ok) throw new Error(j.error?.message || `Claude ${res.status}`);
@@ -2136,7 +2137,11 @@ async function callOpenAI(key, model, system, user) {
   const res = await fetch("https://api.openai.com/v1/chat/completions", {
     method: "POST",
     headers: { "content-type": "application/json", authorization: `Bearer ${key}` },
-    body: JSON.stringify({ model, max_tokens: 1500, messages: [{ role: "system", content: system }, { role: "user", content: user }] }),
+    body: JSON.stringify({
+      model,
+      max_completion_tokens: AI_MAX_TOKENS,
+      messages: [{ role: "system", content: system }, { role: "user", content: user }],
+    }),
   });
   const j = await res.json();
   if (!res.ok) throw new Error(j.error?.message || `OpenAI ${res.status}`);
@@ -2147,7 +2152,13 @@ async function callGemini(key, model, system, user) {
   const res = await fetch(url, {
     method: "POST",
     headers: { "content-type": "application/json" },
-    body: JSON.stringify({ systemInstruction: { parts: [{ text: system }] }, contents: [{ role: "user", parts: [{ text: user }] }] }),
+    body: JSON.stringify({
+      systemInstruction: { parts: [{ text: system }] },
+      contents: [{ role: "user", parts: [{ text: user }] }],
+      // 구글 검색 그라운딩: 대시보드 데이터 + 실시간 웹 정보 결합
+      tools: [{ google_search: {} }],
+      generationConfig: { maxOutputTokens: AI_MAX_TOKENS },
+    }),
   });
   const j = await res.json();
   if (!res.ok) throw new Error(j.error?.message || `Gemini ${res.status}`);
@@ -2255,7 +2266,13 @@ function setupAiTab() {
     }
 
     const system =
-      "당신은 이 대시보드의 경제 데이터만 근거로 답하는 한국어 경제 애널리스트입니다. 제공된 시계열 데이터와, 있다면 '대시보드가 실제 계산한 상관관계' 수치를 근거로 분석하세요. 상관계수는 임의로 재계산하지 말고 제공된 계산값을 그대로 인용하세요. 데이터 흐름(추세·변곡점·최근 방향)과 그 의미를 구체적으로 설명하고, 데이터에 없는 사실은 '데이터에 없음'이라 밝히세요.";
+      "당신은 최고 수준의 거시경제 애널리스트입니다. 아래 대시보드의 실측 시계열과(있다면) '대시보드가 실제 계산한 상관관계' 수치를 핵심 근거로 삼되, 당신이 학습한 폭넓은 경제 지식(통화·재정정책, 역사적 사례, 시장 메커니즘, 지정학·산업 구조 등 대시보드에 없는 외부 맥락)을 결합해 깊이 있고 논리적으로 분석하세요.\n\n" +
+      "작성 원칙:\n" +
+      "1) 단계적으로 사고하여 표면적 요약이 아닌 원인·전달경로(메커니즘)·파급효과·시나리오까지 다룰 것.\n" +
+      "2) 구조: ① 핵심 결론 ② 데이터가 말하는 것(제공 수치·상관계수를 구체적으로 인용) ③ 심층 분석(왜 그런지, 배경·메커니즘·외부 요인) ④ 리스크와 향후 전망(복수 시나리오와 근거).\n" +
+      "3) 대시보드 데이터에 근거한 사실과 당신의 일반지식·추론을 명확히 구분해 표기할 것(예: '데이터 기준…', '일반적으로…', '추정하건대…').\n" +
+      "4) 제공된 상관계수 등 계산값은 그대로 인용하고 임의로 재계산하지 말 것.\n" +
+      "5) 한국어로 근거와 논리를 갖춰 충분히 상세하게 서술할 것.";
     const user = `다음은 대시보드 데이터입니다.\n\n${context}${computedNote}\n\n[질문]\n${question}`;
 
     submitBtn.disabled = true;
