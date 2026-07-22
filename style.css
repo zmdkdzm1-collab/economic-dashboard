@@ -1465,3 +1465,19 @@ main {
   background: var(--bg-alt); border: 1px solid var(--border); border-radius: 8px;
   padding: 12px; margin-bottom: 10px;
 }
+
+/* AI 탭 - 추천 질문 / 선택지 칩 */
+.ai-suggestions { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin-top: 8px; }
+.ai-sugg-label { font-size: 0.76rem; color: var(--text-muted); font-weight: 600; margin-right: 2px; }
+.ai-sugg-chip {
+  background: var(--bg-alt); border: 1px solid var(--border); border-radius: 999px;
+  padding: 5px 12px; font-size: 0.8rem; color: var(--text); cursor: pointer;
+}
+.ai-sugg-chip:hover { border-color: var(--accent); color: var(--accent); }
+.ai-options { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.ai-option-chip {
+  background: var(--accent-bg); border: 1px solid var(--accent); border-radius: 8px;
+  padding: 8px 14px; font-size: 0.86rem; color: var(--accent); cursor: pointer; font-weight: 600;
+  text-align: left;
+}
+.ai-option-chip:hover { background: var(--accent); color: #fff; }
