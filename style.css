@@ -1112,6 +1112,42 @@ main {
   font-size: 0.76rem;
   color: var(--text-muted);
 }
+.key-indicator-card .ki-prev-row {
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+  margin-top: 8px;
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+.key-indicator-card .ki-prev-label {
+  padding: 1px 6px;
+  border-radius: 6px;
+  background: rgba(127, 127, 127, 0.14);
+  font-size: 0.7rem;
+  font-weight: 600;
+}
+.key-indicator-card .ki-prev-value {
+  color: var(--text);
+  font-weight: 600;
+}
+.key-indicator-card .ki-prev-period {
+  font-size: 0.72rem;
+}
+.key-indicator-card .ki-delta {
+  margin-left: auto;
+  font-weight: 700;
+  font-size: 0.78rem;
+}
+.key-indicator-card .ki-delta-up {
+  color: #e23b3b;
+}
+.key-indicator-card .ki-delta-down {
+  color: #2f6fe0;
+}
+.key-indicator-card .ki-delta-flat {
+  color: var(--text-muted);
+}
 .key-indicator-empty {
   color: var(--text-muted);
   font-size: 0.85rem;
