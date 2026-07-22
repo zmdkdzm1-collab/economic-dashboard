@@ -2013,11 +2013,13 @@ function setupThemeToggle() {
 // ----------------------------------------------------------------------------
 // AI 분석 탭: 사용자 API 키로 대시보드 데이터를 LLM에게 질의(브라우저 직접 호출, 서버 없음)
 // ----------------------------------------------------------------------------
-const AI_DEFAULT_MODEL = {
-  claude: "claude-3-5-sonnet-latest",
-  gemini: "gemini-1.5-flash",
-  openai: "gpt-4o-mini",
+// 제공사별 선택 가능한 모델(첫 항목이 기본값). 목록에 없으면 "직접 입력" 사용.
+const AI_MODELS = {
+  claude: ["claude-3-5-sonnet-latest", "claude-3-5-haiku-latest", "claude-3-opus-latest"],
+  gemini: ["gemini-1.5-flash", "gemini-1.5-pro", "gemini-2.0-flash"],
+  openai: ["gpt-4o", "gpt-4o-mini", "gpt-4-turbo", "gpt-3.5-turbo"],
 };
+const AI_CUSTOM = "__custom__";
 
 // 모든 시계열을 검색 가능한 단일 목록으로 수집(라벨/국가/단위/최신값/최근값)
 function collectAllSeries() {
@@ -2131,6 +2133,7 @@ async function callGemini(key, model, system, user) {
 
 function setupAiTab() {
   const providerSel = document.getElementById("aiProvider");
+  const modelSel = document.getElementById("aiModelSelect");
   const modelInput = document.getElementById("aiModel");
   const keyInput = document.getElementById("aiKey");
   const keyToggle = document.getElementById("aiKeyToggle");
@@ -2142,10 +2145,26 @@ function setupAiTab() {
   const ctxEl = document.getElementById("aiContext");
   if (!providerSel) return;
 
+  const effectiveModel = () => (modelSel.value === AI_CUSTOM ? modelInput.value.trim() : modelSel.value);
+  const syncCustomVisibility = () => {
+    modelInput.hidden = modelSel.value !== AI_CUSTOM;
+  };
   const loadForProvider = () => {
     const p = providerSel.value;
     keyInput.value = localStorage.getItem(`ai_key_${p}`) || "";
-    modelInput.value = localStorage.getItem(`ai_model_${p}`) || AI_DEFAULT_MODEL[p];
+    // 모델 드롭다운 채우기
+    const saved = localStorage.getItem(`ai_model_${p}`) || AI_MODELS[p][0];
+    modelSel.innerHTML =
+      AI_MODELS[p].map((m) => `<option value="${m}">${m}</option>`).join("") +
+      `<option value="${AI_CUSTOM}">직접 입력…</option>`;
+    if (AI_MODELS[p].includes(saved)) {
+      modelSel.value = saved;
+      modelInput.value = "";
+    } else {
+      modelSel.value = AI_CUSTOM;
+      modelInput.value = saved;
+    }
+    syncCustomVisibility();
   };
   providerSel.value = localStorage.getItem("ai_provider") || "claude";
   loadForProvider();
@@ -2153,18 +2172,24 @@ function setupAiTab() {
     localStorage.setItem("ai_provider", providerSel.value);
     loadForProvider();
   });
+  const saveModel = () => localStorage.setItem(`ai_model_${providerSel.value}`, effectiveModel());
+  modelSel.addEventListener("change", () => {
+    syncCustomVisibility();
+    saveModel();
+  });
+  modelInput.addEventListener("change", saveModel);
   keyInput.addEventListener("change", () => localStorage.setItem(`ai_key_${providerSel.value}`, keyInput.value.trim()));
-  modelInput.addEventListener("change", () => localStorage.setItem(`ai_model_${providerSel.value}`, modelInput.value.trim()));
   keyToggle.addEventListener("click", () => {
     keyInput.type = keyInput.type === "password" ? "text" : "password";
   });
 
   submitBtn.addEventListener("click", async () => {
     const provider = providerSel.value;
-    const model = modelInput.value.trim() || AI_DEFAULT_MODEL[provider];
+    const model = effectiveModel() || AI_MODELS[provider][0];
     const key = keyInput.value.trim();
     const question = questionEl.value.trim();
     if (!key) return (statusEl.textContent = "⚠️ API 키를 입력하세요.");
+    if (!model) return (statusEl.textContent = "⚠️ 모델명을 입력하세요.");
     if (!question) return (statusEl.textContent = "⚠️ 질문을 입력하세요.");
     localStorage.setItem(`ai_key_${provider}`, key);
     localStorage.setItem(`ai_model_${provider}`, model);
