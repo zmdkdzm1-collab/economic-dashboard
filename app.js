@@ -641,6 +641,24 @@ function buildStepMonthlyHistory(points, endDateStr) {
   return out;
 }
 
+// 시간축 기반 미니 차트용: 변경 시점만 있는 시계열을 계단형 {date,value} 점열로 확장
+// (각 변경일에 '이전값 → 새값' 두 점을 넣어 수직 점프 + 수평 유지 형태를 만든다)
+function buildStepPointSeries(series, endDateStr) {
+  const sorted = series
+    .filter((p) => typeof p.value === "number" && !isNaN(p.value))
+    .slice()
+    .sort((a, b) => (a.date < b.date ? -1 : 1));
+  if (!sorted.length) return [];
+  const out = [];
+  for (let i = 0; i < sorted.length; i++) {
+    if (i > 0) out.push({ date: sorted[i].date, value: sorted[i - 1].value });
+    out.push({ date: sorted[i].date, value: sorted[i].value });
+  }
+  const last = sorted[sorted.length - 1];
+  if (endDateStr && endDateStr > last.date) out.push({ date: endDateStr, value: last.value });
+  return out;
+}
+
 // 회의 지표라면 실측 기준금리 계단형 시계열을, 아니면 null을 돌려줌
 function getMonetaryStepSeries(indId) {
   const prSeries = getPolicyRateSeries(indId);
@@ -1404,9 +1422,10 @@ function renderPolicyRateCards() {
     })
     .join("");
 
+  const todayStr = formatYmd(new Date());
   policyRates.forEach((r) => {
     const container = grid.querySelector(`.asset-chart-container[data-chart-id="${r.id}"]`);
-    if (container) renderAssetCardChart(container, r.series);
+    if (container) renderAssetCardChart(container, buildStepPointSeries(r.series, todayStr));
   });
 
   grid.querySelectorAll(".bond-card").forEach((card) => {
@@ -1447,8 +1466,8 @@ function openPolicyRateModal(rateId) {
       ${bondChangeBadge("1년", y)}
     </div>
 
-    <h4>결정 변경 이력 (계단식 — 값이 바뀐 시점만 기록)</h4>
-    <p class="chart-disclaimer">⚠️ 회의에서 동결이 나온 달은 별도로 기록하지 않고, 실제로 금리가 바뀐 시점만 이어서 표시합니다.</p>
+    <h4>2020년 ~ 현재 기준금리 추이 (계단식)</h4>
+    <p class="chart-disclaimer">✅ 중앙은행이 공식 발표한 실측 기준금리입니다. 금리가 바뀔 때까지 값을 그대로 유지한 계단형 추이로, 시간축은 실제 기간에 비례합니다.</p>
     <div id="historyChartContainer"></div>
 
     <h4>최근 변경 내역</h4>
@@ -1458,7 +1477,7 @@ function openPolicyRateModal(rateId) {
     </table>
   `;
 
-  const chartSeries = r.series.map((p) => ({ date: p.date, actual: p.value, consensus: NaN }));
+  const chartSeries = buildStepMonthlyHistory(r.series, formatYmd(new Date()));
   renderHistoryChart(document.getElementById("historyChartContainer"), chartSeries);
 
   document.getElementById("detailModal").classList.add("active");
