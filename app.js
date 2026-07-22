@@ -51,6 +51,31 @@ function rateSeriesPoints(id) {
 
 // 홈 국채금리 카드용: 기존 series의 rateData 시작일 이전 구간(장기 과거)을 살리고
 // 그 뒤로 일별 실데이터를 이어붙여 촘촘한 추이를 만든다.
+// 블룸버그 업로드 데이터(가장 신선, 2026-07-22)로 홈 채권·지수 카드 시계열을 덮어씀.
+// 기준금리는 블룸버그도 월간 지연이라 큐레이션 값을 유지(덮지 않음).
+const BBG_BOND_MAP = {
+  bond_kr_10y: "gvsk10yr_index",
+  bond_us_10y: "usgg10yr_index",
+  bond_jp_10y: "gjgb10_index",
+  bond_eu_10y: "gdbr10_index",
+  bond_au_10y: "gacgb10_index",
+};
+const BBG_ASSET_MAP = { idx_kospi: "kospi_index", idx_sp500: "spx_index", idx_wti: "cl1_comdty" };
+function refreshFromBloomberg() {
+  if (typeof bloombergData === "undefined") return;
+  const toPoints = (key) => (bloombergData.daily[key]?.series || []).map(([date, value]) => ({ date, value }));
+  Object.entries(BBG_BOND_MAP).forEach(([bondId, key]) => {
+    const bond = bondYieldById.get(bondId);
+    const pts = toPoints(key);
+    if (bond && pts.length) bond.series = pts;
+  });
+  Object.entries(BBG_ASSET_MAP).forEach(([assetId, key]) => {
+    const asset = marketAssetById.get(assetId);
+    const pts = toPoints(key);
+    if (asset && pts.length) asset.series = pts;
+  });
+}
+
 function refreshBondSeriesFromRateData() {
   if (!hasRateData) return;
   const mapping = { bond_kr_10y: "ktb10y", bond_us_10y: "ust0y", bond_jp_10y: "jpy10y", bond_au_10y: "aud10y" };
@@ -1367,6 +1392,12 @@ function getSeriesById(compId) {
     if (!s) return null;
     return { label: `${s.label} (e-Stat)`, unit: s.unit, points: s.recent };
   }
+  if (compId.startsWith("bbgd:") || compId.startsWith("bbgm:")) {
+    const bucket = compId.startsWith("bbgd:") ? "daily" : "monthly";
+    const s = typeof bloombergData !== "undefined" && bloombergData[bucket][compId.slice(5)];
+    if (!s) return null;
+    return { label: `${s.label} (BBG)`, unit: s.unit, points: s.series.map(([date, value]) => ({ date, value })) };
+  }
   const ind = indicatorById.get(compId.slice(4));
   if (!ind) return null;
   return { label: `${ind.country} ${ind.name}`, unit: ind.unit, points: getRealSeriesForIndicator(ind) };
@@ -1398,7 +1429,17 @@ function getComparableOptions() {
   addRef(typeof fredReference !== "undefined" && fredReference, "fred", "📊 FRED (미국)");
   addRef(typeof ecosReference !== "undefined" && ecosReference, "ecos", "📊 ECOS (한국)");
   addRef(typeof estatReference !== "undefined" && estatReference, "estat", "📊 e-Stat (일본)");
-  return [...bondOpts, ...rateOpts, ...assetOpts, ...indOpts, ...rdOpts, ...refOpts];
+  // 블룸버그 업로드 데이터(일별 금융지표 + 월별 매크로) 전체
+  const bbgOpts = [];
+  if (typeof bloombergData !== "undefined") {
+    Object.entries(bloombergData.daily).forEach(([k, s]) => {
+      if (s.series && s.series.length >= 2) bbgOpts.push({ id: `bbgd:${k}`, group: "📈 Bloomberg 일별", label: s.label });
+    });
+    Object.entries(bloombergData.monthly).forEach(([k, s]) => {
+      if (s.series && s.series.length >= 2) bbgOpts.push({ id: `bbgm:${k}`, group: "📈 Bloomberg 월별", label: s.label });
+    });
+  }
+  return [...bondOpts, ...rateOpts, ...assetOpts, ...indOpts, ...rdOpts, ...refOpts, ...bbgOpts];
 }
 
 function populateCompareSelects() {
@@ -1821,6 +1862,7 @@ function setupHomeWeekNav() {
 
 function renderHomeView() {
   refreshBondSeriesFromRateData();
+  refreshFromBloomberg();
   renderBondCards();
   renderPolicyRateCards();
   renderBondCompareChart();
