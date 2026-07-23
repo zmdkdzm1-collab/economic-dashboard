@@ -65,8 +65,13 @@ def num(v):
 
 
 def parse_sheet(rows):
-    """시트 rows → { ticker_key: {unit,name,nextRelease, fields:{field:col}, series:{field:[(date,val)]}} }"""
-    # 라벨 행 찾기 (col2 = index1)
+    """시트 rows → { ticker_key: {unit,name,nextRelease, fields:{field:col}, series:{field:[(date,val)]}} }
+
+    필드는 '티커' 행에서 같은 티커가 연속으로 반복되는 열 묶음으로 판별한다:
+      3열 묶음 = 매크로 [최신치, 초기 발표치, 시장 예상치]
+      1열      = 금융 [종가]  (일별 종가/수준값)
+    (시트 상단의 다른 설정 헤더 블록에 흔들리지 않도록 field 행에 의존하지 않음)
+    """
     def find_label(label):
         for ri, row in enumerate(rows):
             if len(row) > 1 and row[1] == label:
@@ -76,50 +81,49 @@ def parse_sheet(rows):
     r_tk = find_label("티커")
     if r_tk is None:
         return {}
-    r_unit = find_label("단위")
-    r_name = find_label("지표")           # 첫 '지표' 행(지표명)
-    r_next = find_label("차기 발표일시")
-    # field 행: 최신치/종가 등이 2개 이상 있는 첫 행
-    r_field = None
-    for ri, row in enumerate(rows[:r_tk + 1]):
-        if sum(1 for c in row if c in FIELD_LABELS) >= 2:
-            r_field = ri
-            break
-
     trow = rows[r_tk]
-    urow = rows[r_unit] if r_unit is not None else [None] * len(trow)
-    nrow = rows[r_name] if r_name is not None else [None] * len(trow)
-    xrow = rows[r_next] if r_next is not None else [None] * len(trow)
-    frow = rows[r_field] if r_field is not None else [None] * len(trow)
+    urow = rows[find_label("단위")] if find_label("단위") is not None else []
+    nrow = rows[find_label("지표")] if find_label("지표") is not None else []
+    xrow = rows[find_label("차기 발표일시")] if find_label("차기 발표일시") is not None else []
+
+    def cell(row, ci):
+        return row[ci] if row and ci < len(row) and not is_bad(row[ci]) else None
 
     meta = {}
-    for ci in range(2, len(trow)):
+    n = len(trow)
+    ci = 2
+    while ci < n:
         tk = trow[ci]
         if is_bad(tk):
+            ci += 1
             continue
+        grp = [ci]
+        cj = ci + 1
+        while cj < n and trow[cj] == tk:
+            grp.append(cj)
+            cj += 1
+        if len(grp) >= 3:
+            fields = {"최신치": grp[0], "초기 발표치": grp[1], "시장 예상치": grp[2]}
+        elif len(grp) == 2:
+            fields = {"최신치": grp[0], "초기 발표치": grp[1]}
+        else:
+            fields = {"종가": grp[0]}
         k = keyof(tk)
-        field = frow[ci] if ci < len(frow) else None
-        m = meta.setdefault(k, {"ticker": str(tk).strip(), "unit": None, "name": None,
-                                "nextRelease": None, "fields": {}, "series": {}})
-        if field:
-            m["fields"][field] = ci
-        if m["unit"] is None and ci < len(urow) and not is_bad(urow[ci]):
-            m["unit"] = urow[ci]
-        if m["name"] is None and ci < len(nrow) and not is_bad(nrow[ci]):
-            m["name"] = nrow[ci]
-        if m["nextRelease"] is None and ci < len(xrow) and not is_bad(xrow[ci]):
-            m["nextRelease"] = str(xrow[ci])
+        nr = cell(xrow, grp[0])
+        meta.setdefault(k, {"ticker": str(tk).strip(), "unit": cell(urow, grp[0]),
+                            "name": cell(nrow, grp[0]), "nextRelease": (str(nr) if nr else None),
+                            "fields": fields, "series": {}})
+        ci = cj
 
-    # 데이터 읽기
     for row in rows[r_tk + 1:]:
         if len(row) < 2:
             continue
         d = norm_date(row[1]) if row[1] is not None and hasattr(row[1], "year") else None
         if not d:
             continue
-        for k, m in meta.items():
-            for field, ci in m["fields"].items():
-                v = num(row[ci]) if ci < len(row) else None
+        for m in meta.values():
+            for field, c in m["fields"].items():
+                v = num(row[c]) if c < len(row) else None
                 if v is not None:
                     m["series"].setdefault(field, []).append((d, v))
     for m in meta.values():
@@ -201,10 +205,10 @@ def main():
     for key, obj in cur["monthly"].items():
         tk = keyof(obj["ticker"])
         m = tick.get(tk)
-        if not m or "최신치" not in m["series"]:
+        latest = (m["series"].get("최신치") or m["series"].get("종가")) if m else None
+        if not latest:
             missing.append(key)
             continue
-        latest = m["series"]["최신치"]
         surv = dict(m["series"].get("시장 예상치", []))
         init = dict(m["series"].get("초기 발표치", []))
         cur_last = obj["series"][-1][0]
