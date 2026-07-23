@@ -1511,6 +1511,7 @@ main {
 }
 .ai-sugg-chip:hover { border-color: var(--accent); color: var(--accent); }
 .ai-options { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 12px; }
+.ai-options-label { flex-basis: 100%; font-size: 0.8rem; font-weight: 700; color: var(--text-muted); margin-bottom: 2px; }
 .ai-option-chip {
   background: var(--accent-bg); border: 1px solid var(--accent); border-radius: 8px;
   padding: 8px 14px; font-size: 0.86rem; color: var(--accent); cursor: pointer; font-weight: 600;

@@ -2149,7 +2149,7 @@ const AI_MODELS = {
   openai: ["gpt-5.6", "gpt-4o", "gpt-4o-mini"],
 };
 const AI_CUSTOM = "__custom__";
-const AI_MAX_TOKENS = 4000;
+const AI_MAX_TOKENS = 8000;
 // 영문·한글 지표 동의어(개념) 그룹 — 매칭 점수 + 비교짝 선택에 공용
 const AI_ALIASES = [
   ["cpi", "소비자물가", "물가지수", "인플레"],
@@ -2406,17 +2406,32 @@ function setupAiTab() {
     });
   }
 
-  // 답변에서 '[[선택지]] a || b || c' 를 파싱해 본문/선택지 분리
+  // 답변에서 '[[선택지]]'(모호 시 명확화, 분석 대체)와 '[[추가질문]]'(분석 후 보충 후속질문)을 분리
   const parseClarify = (answer) => {
-    const m = answer.match(/\[\[선택지\]\]\s*(.+)\s*$/m);
-    if (!m) return { text: answer, options: [] };
-    const options = m[1].split("||").map((o) => o.trim()).filter(Boolean);
-    const text = answer.slice(0, m.index).trim();
-    return { text, options };
+    let text = answer;
+    let options = [];
+    let followups = [];
+    const clarM = text.match(/\[\[선택지\]\]\s*(.+?)\s*$/m);
+    if (clarM) {
+      options = clarM[1].split("||").map((o) => o.trim()).filter(Boolean);
+      text = text.slice(0, clarM.index).trim();
+    }
+    const folM = text.match(/\[\[추가질문\]\]\s*(.+?)\s*$/m);
+    if (folM) {
+      followups = folM[1].split("||").map((o) => o.trim()).filter(Boolean);
+      text = text.slice(0, folM.index).trim();
+    }
+    return { text, options, followups };
   };
-  const renderOptionChips = (bubble, options) => {
+  const renderOptionChips = (bubble, options, heading) => {
     const wrap = document.createElement("div");
     wrap.className = "ai-options";
+    if (heading) {
+      const h = document.createElement("div");
+      h.className = "ai-options-label";
+      h.textContent = heading;
+      wrap.appendChild(h);
+    }
     options.forEach((opt) => {
       const btn = document.createElement("button");
       btn.type = "button";
@@ -2487,7 +2502,7 @@ function setupAiTab() {
     const system =
       "당신은 최고 수준의 거시경제 애널리스트입니다. 아래 대시보드의 실측 시계열과(있다면) '대시보드가 실제 계산한 상관관계' 수치를 핵심 근거로 삼되, 당신이 학습한 폭넓은 경제 지식(통화·재정정책, 역사적 사례, 시장 메커니즘, 지정학·산업 구조 등 대시보드에 없는 외부 맥락)을 결합해 깊이 있고 논리적으로 분석하세요.\n\n" +
       "먼저 질문이 분석 가능할 만큼 구체적인지 판단하세요. 대상 지표·기간·비교대상·관점이 불명확해 여러 해석이 가능하면, 성급히 분석하지 말고 (1) 무엇이 불명확한지 한두 문장으로 짚고 (2) 사용자가 고를 수 있는 2~4개의 구체적 선택지를 제시하세요. 이때 답변 맨 마지막 줄에 반드시 이 형식으로 선택지를 출력하세요: '[[선택지]] 첫번째 || 두번째 || 세번째'. (선택지 문구는 그대로 다시 질문해도 되도록 완결된 질문형/명령형으로 작성)\n" +
-      "질문이 충분히 구체적이면 위 형식 없이 곧바로 심층 분석하세요.\n\n" +
+      "질문이 충분히 구체적이면 '[[선택지]]' 없이 곧바로 심층 분석하세요. 그리고 심층 분석을 제공한 경우에는 답변을 마무리한 뒤, 맨 마지막 줄에 반드시 이 형식으로 방금 분석을 심화·확장하는 보충 후속 질문을 2~3개(최소 1개) 출력하세요: '[[추가질문]] 첫번째 || 두번째 || 세번째'. (각 문구는 그대로 다시 질문해도 되도록 완결된 질문형으로, 가급적 대시보드의 실측 지표로 답할 수 있는 것 위주로 작성) 단, 위 '[[선택지]]'로 되물은 경우에는 '[[추가질문]]'을 넣지 마세요.\n\n" +
       "심층 분석 시 원칙:\n" +
       "1) 단계적으로 사고하여 표면적 요약이 아닌 원인·전달경로(메커니즘)·파급효과·시나리오까지 다룰 것.\n" +
       "2) 구조: ① 핵심 결론 ② 데이터가 말하는 것(제공 수치·상관계수를 구체적으로 인용) ③ 심층 분석(왜 그런지, 배경·메커니즘·외부 요인) ④ 리스크와 향후 전망(복수 시나리오와 근거).\n" +
@@ -2515,13 +2530,14 @@ function setupAiTab() {
     try {
       const fn = provider === "claude" ? callClaude : provider === "openai" ? callOpenAI : callGemini;
       const answer = await fn(key, model, system, outgoing);
-      const { text, options } = parseClarify(answer || "");
+      const { text, options, followups } = parseClarify(answer || "");
       bubble.text.textContent = text || "(빈 응답)";
       if (options.length) {
-        renderOptionChips(bubble, options);
+        renderOptionChips(bubble, options, "❓ 무엇을 볼지 골라주세요");
         statusEl.textContent = "❓ 아래 선택지를 고르거나, 더 구체적으로 다시 질문해 주세요";
       } else {
-        statusEl.textContent = "✅ 완료 — 이어서 질문할 수 있어요";
+        if (followups.length) renderOptionChips(bubble, followups, "🔎 이어서 볼 만한 질문");
+        statusEl.textContent = "✅ 완료 — 이어서 질문하거나 아래 추천 질문을 눌러보세요";
       }
       // 이력 확정(성공한 턴만 유지)
       aiConversation = [...outgoing, { role: "assistant", content: answer || "" }];
