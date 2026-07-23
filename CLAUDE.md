@@ -23,7 +23,9 @@
 - **경제 캘린더**: 엑셀을 `data-imports/calendar.xlsx`로 저장 후
   `python3 scripts/update-calendar.py` 실행. (자세한 규칙은 `data-imports/README.md`)
   data.js의 `<<CALENDAR_RAW_START>>`~`<<CALENDAR_RAW_END>>` 사이만 자동으로 다시 씀.
-- **블룸버그 매크로**: `bloomberg-data.js`의 series/releases에 새 값 추가.
+- **블룸버그 매크로**: 엑셀을 `data-imports/bloomberg.xlsx`로 저장 후
+  `python3 scripts/update-bloomberg.py` 실행(최신값만 이어붙임, 과거 이력 보존).
+  수동으로 넣을 땐 `bloomberg-data.js`의 series/releases에 값 추가.
 - **기준금리 변경**: `data.js`의 `policyRates[].series`에 `{date,value}` 추가.
 
 ## 로컬 확인
