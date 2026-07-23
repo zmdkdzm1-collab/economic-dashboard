@@ -823,6 +823,104 @@ function buildFullHistory(ind) {
 // ----------------------------------------------------------------------------
 // SVG 선 그래프 렌더링 (실제치 = 선, 컨센서스 = 점)
 // ----------------------------------------------------------------------------
+// ----------------------------------------------------------------------------
+// 공통 차트 호버 툴팁: 선 위에 마우스를 올리면 가장 가까운 지점의 날짜·값을 표시
+// columns: [{ vx, date, rows:[{ vy, label, value, color }] }] (모두 viewBox 좌표계 기준)
+// ----------------------------------------------------------------------------
+function attachChartHover(container, columns, W, H) {
+  const svg = container.querySelector("svg");
+  if (!svg || !columns.length) return;
+  const NS = "http://www.w3.org/2000/svg";
+  if (getComputedStyle(container).position === "static") container.style.position = "relative";
+
+  const gline = document.createElementNS(NS, "line");
+  gline.setAttribute("class", "chart-hover-line");
+  gline.setAttribute("y1", 0);
+  gline.setAttribute("y2", H);
+  gline.style.display = "none";
+  svg.appendChild(gline);
+
+  const maxRows = columns.reduce((m, c) => Math.max(m, c.rows.length), 0);
+  const dots = [];
+  for (let i = 0; i < maxRows; i++) {
+    const c = document.createElementNS(NS, "circle");
+    c.setAttribute("r", "3.4");
+    c.setAttribute("class", "chart-hover-dot");
+    c.style.display = "none";
+    svg.appendChild(c);
+    dots.push(c);
+  }
+
+  const capture = document.createElementNS(NS, "rect");
+  capture.setAttribute("x", 0);
+  capture.setAttribute("y", 0);
+  capture.setAttribute("width", W);
+  capture.setAttribute("height", H);
+  capture.setAttribute("fill", "transparent");
+  capture.style.cursor = "crosshair";
+  svg.appendChild(capture);
+
+  const tip = document.createElement("div");
+  tip.className = "chart-tooltip";
+  tip.style.display = "none";
+  container.appendChild(tip);
+
+  const move = (e) => {
+    const rect = svg.getBoundingClientRect();
+    if (!rect.width) return;
+    const vx = ((e.clientX - rect.left) / rect.width) * W;
+    let best = columns[0], bd = Infinity;
+    for (const c of columns) {
+      const d = Math.abs(c.vx - vx);
+      if (d < bd) { bd = d; best = c; }
+    }
+    gline.setAttribute("x1", best.vx);
+    gline.setAttribute("x2", best.vx);
+    gline.style.display = "";
+    dots.forEach((dot, i) => {
+      const r = best.rows[i];
+      if (r) {
+        dot.setAttribute("cx", best.vx);
+        dot.setAttribute("cy", r.vy);
+        dot.setAttribute("stroke", r.color || "var(--accent)");
+        dot.style.display = "";
+      } else dot.style.display = "none";
+    });
+    tip.innerHTML =
+      `<div class="ctt-date">${best.date}</div>` +
+      best.rows
+        .map(
+          (r) =>
+            `<div class="ctt-row">${
+              r.label ? `<span class="ctt-dot" style="background:${r.color || "var(--accent)"}"></span><span class="ctt-label">${r.label}</span>` : ""
+            }<span class="ctt-val">${r.value}</span></div>`
+        )
+        .join("");
+    tip.style.display = "block";
+    const cRect = container.getBoundingClientRect();
+    const dotX = rect.left - cRect.left + (best.vx / W) * rect.width;
+    let left = dotX - tip.offsetWidth / 2;
+    left = Math.max(2, Math.min(left, cRect.width - tip.offsetWidth - 2));
+    let top = e.clientY - cRect.top - tip.offsetHeight - 14;
+    if (top < 0) top = e.clientY - cRect.top + 16;
+    tip.style.left = left + "px";
+    tip.style.top = top + "px";
+  };
+  const leave = () => {
+    tip.style.display = "none";
+    gline.style.display = "none";
+    dots.forEach((d) => (d.style.display = "none"));
+  };
+  capture.addEventListener("mousemove", move);
+  capture.addEventListener("mouseleave", leave);
+}
+
+// 툴팁용 숫자 포맷 (큰 수는 천단위, 작은 수는 소수 둘째자리)
+function fmtHoverValue(v) {
+  if (typeof v !== "number" || isNaN(v)) return v;
+  return Math.abs(v) >= 100 ? v.toLocaleString("en-US", { maximumFractionDigits: 1 }) : v.toFixed(2);
+}
+
 function renderHistoryChart(container, series) {
   if (!series.length) {
     container.innerHTML = `<p class="chart-empty">차트로 표시할 수치형 데이터가 없는 항목입니다 (예: 의사록 공개처럼 숫자로 표현되지 않는 이벤트).</p>`;
@@ -883,6 +981,14 @@ function renderHistoryChart(container, series) {
       <span class="legend-dot"></span> 컨센서스(점)
     </div>
   `;
+
+  const hasCons = series.some((p) => !isNaN(p.consensus));
+  const columns = series.map((p, i) => {
+    const rows = [{ vy: yAt(p.actual), value: fmtHoverValue(p.actual), label: hasCons ? "실제" : "", color: "var(--accent)" }];
+    if (!isNaN(p.consensus)) rows.push({ vy: yAt(p.consensus), value: fmtHoverValue(p.consensus), label: "컨센", color: "#d97706" });
+    return { vx: xAt(i), date: p.date, rows };
+  });
+  attachChartHover(container, columns, width, height);
 }
 
 // ----------------------------------------------------------------------------
@@ -1297,6 +1403,13 @@ function renderAssetCardChart(container, series) {
     </svg>
     <div class="asset-chart-xaxis"><span>${series[0].date}</span><span>${series[series.length - 1].date}</span></div>
   `;
+
+  const columns = series.map((p) => ({
+    vx: xAt(new Date(p.date).getTime()),
+    date: p.date,
+    rows: [{ vy: yAt(p.value), value: fmt(p.value) }],
+  }));
+  attachChartHover(container, columns, width, height);
 }
 
 function renderMarketAssetCards() {
@@ -1800,6 +1913,16 @@ function renderComparisonChart(container, months, xs, ys, labelA, labelB) {
     </div>
     <p class="chart-disclaimer">⚠️ 두 시리즈는 단위·규모가 달라 각자의 최소~최대값 기준으로 정규화해 겹쳐 그린 그래프입니다 (같은 세로축이 아닙니다).</p>
   `;
+
+  const columns = months.map((m, i) => ({
+    vx: xAt(i),
+    date: m,
+    rows: [
+      { vy: yAtX(xs[i]), value: fmtHoverValue(xs[i]), label: labelA, color: "#2563eb" },
+      { vy: yAtY(ys[i]), value: fmtHoverValue(ys[i]), label: labelB, color: "#d97706" },
+    ],
+  }));
+  attachChartHover(container, columns, width, height);
 }
 
 function renderComparisonStats(container, r, n, labelA, labelB) {
