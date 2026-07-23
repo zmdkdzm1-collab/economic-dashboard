@@ -641,6 +641,60 @@ main {
   height: auto;
   display: block;
 }
+/* 차트 호버 툴팁 (모든 선그래프 공통) */
+.chart-tooltip {
+  position: absolute;
+  z-index: 30;
+  pointer-events: none;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 6px 9px;
+  font-size: 0.76rem;
+  line-height: 1.35;
+  color: var(--text);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.2);
+  white-space: nowrap;
+}
+.chart-tooltip .ctt-date {
+  font-weight: 700;
+  font-size: 0.72rem;
+  color: var(--text-muted);
+  margin-bottom: 3px;
+}
+.chart-tooltip .ctt-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.chart-tooltip .ctt-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  display: inline-block;
+  flex: none;
+}
+.chart-tooltip .ctt-label {
+  color: var(--text-muted);
+  max-width: 180px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.chart-tooltip .ctt-val {
+  font-weight: 700;
+  margin-left: auto;
+  padding-left: 8px;
+}
+.chart-hover-line {
+  stroke: var(--text-muted);
+  stroke-width: 1;
+  stroke-dasharray: 3 3;
+  opacity: 0.55;
+}
+.chart-hover-dot {
+  fill: var(--bg-card);
+  stroke-width: 2;
+}
 .chart-line {
   fill: none;
   stroke: var(--accent);
