@@ -7,3 +7,9 @@ data-imports/*.csv
 # OS 잡파일
 .DS_Store
 Thumbs.db
+
+# 채권 퀀트 툴 — 사내(내부) 데이터는 절대 커밋 금지 (외부 유출 방지)
+#  · 실제 포트폴리오/경쟁사 기준가가 들어가는 파일. .sample 템플릿만 저장소에 남깁니다.
+bond-quant-internal.js
+#  · 암호화 공유용으로 내보낸 단독 HTML (로컬에서만 보관/전달)
+bond-quant-shared-*.html

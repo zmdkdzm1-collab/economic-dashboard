@@ -1,0 +1,79 @@
+<!doctype html>
+<html lang="ko">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>채권 퀀트·매크로 데스크 (로컬 전용)</title>
+  <style id="bq-style">
+    :root {
+      --bg: #f6f7f9; --card: #ffffff; --text: #111827; --muted: #6b7280;
+      --border: #e5e7eb; --accent: #2563eb; --pos: #059669; --neg: #dc2626;
+      --grid: #eef0f3; --head: #f9fafb;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #0f1115; --card: #171a21; --text: #e5e7eb; --muted: #9ca3af;
+        --border: #262b36; --accent: #60a5fa; --pos: #34d399; --neg: #f87171;
+        --grid: #1f2430; --head: #1b1f28;
+      }
+    }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text);
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "Malgun Gothic", sans-serif;
+      font-size: 14px; line-height: 1.5; }
+    #bq-app { max-width: 980px; margin: 0 auto; padding: 0 16px 60px; }
+    .bq-header { display: flex; justify-content: space-between; align-items: center;
+      padding: 18px 0 12px; border-bottom: 1px solid var(--border); flex-wrap: wrap; gap: 10px; }
+    .bq-brand b { font-size: 17px; }
+    .bq-brand span { display: block; color: var(--muted); font-size: 12px; margin-top: 2px; }
+    .bq-btn { background: var(--accent); color: #fff; border: 0; border-radius: 8px;
+      padding: 8px 14px; font-size: 13px; cursor: pointer; }
+    .bq-btn:hover { opacity: .9; }
+    .bq-warn { background: #fef3c7; color: #92400e; border: 1px solid #fde68a;
+      border-radius: 8px; padding: 10px 14px; margin: 14px 0; font-size: 13px; }
+    @media (prefers-color-scheme: dark) { .bq-warn { background: #3a2f12; color: #fcd34d; border-color: #55461a; } }
+    .bq-warn code { background: rgba(0,0,0,.12); padding: 1px 5px; border-radius: 4px; }
+    .bq-nav { display: flex; gap: 4px; margin: 16px 0; flex-wrap: wrap; overflow-x: auto; }
+    .bq-tab { background: transparent; border: 1px solid var(--border); color: var(--muted);
+      padding: 8px 14px; border-radius: 999px; cursor: pointer; font-size: 13px; white-space: nowrap; }
+    .bq-tab.active { background: var(--accent); color: #fff; border-color: var(--accent); }
+    .bq-sectiontitle h2 { margin: 8px 0 2px; font-size: 20px; }
+    .bq-sectiontitle p { margin: 0 0 8px; color: var(--muted); font-size: 13px; }
+    .bq-card { background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+      padding: 16px; margin: 14px 0; }
+    .bq-cardtitle { margin: 0 0 12px; font-size: 15px; }
+    .bq-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+    .bq-table th { text-align: right; padding: 7px 10px; background: var(--head);
+      color: var(--muted); font-weight: 600; border-bottom: 1px solid var(--border); white-space: nowrap; }
+    .bq-table th:first-child, .bq-table td:first-child { text-align: left; }
+    .bq-table td { text-align: right; padding: 7px 10px; border-bottom: 1px solid var(--grid); white-space: nowrap; }
+    .bq-table tbody tr:hover td, .bq-table tr:hover td { background: var(--head); }
+    .pos { color: var(--pos); } .neg { color: var(--neg); }
+    .bq-mine { font-weight: 700; }
+    .bq-note { color: var(--muted); font-size: 12px; margin: 10px 0 0; line-height: 1.5; }
+    .bq-muted { color: var(--muted); }
+    .bq-chartwrap { width: 100%; overflow-x: auto; }
+    .bq-chart { width: 100%; height: auto; display: block; }
+    .bq-grid { stroke: var(--grid); stroke-width: 1; }
+    .bq-axis { fill: var(--muted); font-size: 10px; }
+    .bq-legend { display: flex; gap: 14px; flex-wrap: wrap; margin-top: 6px; font-size: 12px; color: var(--muted); }
+    .bq-legend i { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 4px; vertical-align: middle; }
+    .bq-regime { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+    .bq-regime-badge { color: #fff; padding: 8px 18px; border-radius: 8px; font-size: 18px; font-weight: 700; }
+    .bq-regime-desc { color: var(--muted); font-size: 13px; flex: 1; min-width: 200px; }
+    .bq-gauge { position: relative; display: inline-block; width: 80px; height: 6px;
+      background: var(--grid); border-radius: 3px; vertical-align: middle; }
+    .bq-gauge-fill { position: absolute; top: -2px; width: 3px; height: 10px; border-radius: 2px; transform: translateX(-50%); }
+    .bq-actions { display: flex; gap: 8px; }
+  </style>
+</head>
+<body>
+  <div id="bq-app"></div>
+
+  <!-- 로드 순서: 공개 시장데이터 → (있으면)사내 데이터 → 앱 -->
+  <script src="rate-data.js"></script>
+  <script src="bond-quant-internal.js" onerror="window.__noInternal=true"></script>
+  <script src="bond-quant.js"></script>
+  <script>window.BQ.init();</script>
+</body>
+</html>

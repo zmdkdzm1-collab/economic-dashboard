@@ -28,9 +28,17 @@
   수동으로 넣을 땐 `bloomberg-data.js`의 series/releases에 값 추가.
 - **기준금리 변경**: `data.js`의 `policyRates[].series`에 `{date,value}` 추가.
 
+## 채권 퀀트·매크로 데스크 (로컬 전용, 외부 유출 금지)
+- `bond-quant.html` + `bond-quant.js` — 채권형 펀드 퀀트+매크로 운용 보조툴(앱 코드엔 민감정보 없음).
+  `rate-data.js`의 공개 시장데이터를 base로 사용. 자세한 사용법은 `bond-quant.README.md`.
+- **사내 데이터**(내 포트폴리오·경쟁사 기준가)는 `bond-quant-internal.js`에만 담기며 `.gitignore`로
+  **절대 커밋되지 않음.** `bond-quant-internal.sample.js`(가짜 샘플)만 저장소에 남음.
+- 공유는 앱의 "🔒 공유용 암호화 export"(AES-GCM, 비밀번호)로 단독 HTML을 내보내 전달. 공개 웹에 올리지 말 것.
+
 ## 로컬 확인
 ```bash
 python3 -m http.server 8099   # http://127.0.0.1:8099/index.html
+                              # http://127.0.0.1:8099/bond-quant.html (채권 퀀트 툴)
 ```
 Playwright/Chromium: `/opt/pw-browsers/chromium-1194/chrome-linux/chrome` (`--no-sandbox`).
 
