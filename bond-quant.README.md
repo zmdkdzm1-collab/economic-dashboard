@@ -16,29 +16,52 @@
 | `bond-quant-internal.js` | ❌ (gitignore) | **실제 사내 데이터** — 로컬에만 존재 |
 | `bond-quant-shared-*.html` | ❌ (gitignore) | 암호화 공유본 export 결과 |
 
-## 처음 세팅
+## 처음 세팅 — 방법 A) 엑셀/CSV 자동 변환 (권장)
 ```bash
-# 1) 템플릿을 복사해 실데이터 파일 생성 (이 파일은 커밋되지 않음)
-cp bond-quant-internal.sample.js bond-quant-internal.js
+# 1) 입력 파일을 data-imports/ 에 저장 (xlsx 또는 csv, 아래 형식 참고)
+#      data-imports/bond-quant-nav.xlsx        # 기준가(필수)
+#      data-imports/bond-quant-holdings.xlsx   # 내 보유내역(선택)
+#      data-imports/bond-quant.config.json     # 역할 매핑(선택; .sample 복사)
+cp data-imports/bond-quant.config.sample.json data-imports/bond-quant.config.json
 
-# 2) bond-quant-internal.js 를 열어 실제 값으로 교체
-#    - fund.nav      : 내 펀드 기준가 시계열 [{date,value}]
-#    - fund.holdings : 보유내역 (섹터/등급/만기/비중/듀레이션/YTM)
-#    - benchmark.nav : 벤치마크(지수) 시계열, benchmark.duration
-#    - peers[].nav   : 경쟁사 펀드 기준가 시계열 (보유내역은 몰라도 됨!)
-#    - isSampleData  : false 로 변경 (경고 배너 사라짐)
+# 2) 변환 실행 → bond-quant-internal.js 자동 생성 (커밋 안 됨)
+python3 scripts/update-bond-quant.py --dry   # 미리보기(요약만)
+python3 scripts/update-bond-quant.py         # 실제 생성 (기존 파일은 .bak 백업)
 
 # 3) 로컬 서버로 열기 (데이터 파일 로드를 위해 file:// 대신 http 사용)
-python3 -m http.server 8099
-#   → http://127.0.0.1:8099/bond-quant.html
+python3 -m http.server 8099   # → http://127.0.0.1:8099/bond-quant.html
+```
+> xlsx를 쓰면 `pip install openpyxl` 필요. CSV만 쓰면 불필요.
+
+### 입력 파일 형식
+**NAV** (`bond-quant-nav.xlsx`/`.csv`) — 넓은(wide) 형식, 첫 열=날짜, 나머지 열=펀드(헤더=펀드명):
+```
+날짜        | 우리채권 | 종합채권지수 | 경쟁사A | 경쟁사B
+2026-01-02 | 1023.45 | 105.32      | 1011.2 | 998.7
+```
+· 값 빈 칸은 건너뜀(펀드마다 기간 달라도 됨). · 경쟁사는 **기준가만** 넣으면 됨(보유내역 불필요).
+
+**holdings** (`bond-quant-holdings.xlsx`/`.csv`) — 각 행=종목. 헤더(한/영 허용):
+`종목/name, 섹터/sector, 등급/rating, 만기/tenor, 비중/weight, 듀레이션/duration, 금리/ytm`
+· 비중은 % (12) 또는 소수(0.12) 모두 허용(합계로 자동 판별).
+
+**config** (`bond-quant.config.json`) — 없으면 1열=내펀드, 2열=벤치마크, 나머지=경쟁사로 자동 추정.
+
+## 처음 세팅 — 방법 B) 직접 편집
+```bash
+cp bond-quant-internal.sample.js bond-quant-internal.js
+# bond-quant-internal.js 를 열어 fund.nav / fund.holdings / benchmark / peers[].nav 를
+# 실제 값으로 교체하고 isSampleData: false 로 변경
+python3 -m http.server 8099   # → http://127.0.0.1:8099/bond-quant.html
 ```
 
 ## 분석 모듈 (탭)
 1. **커브 & RV** — KTB/UST 커브, 기울기(2s10s 등) z스코어, 나비, 국가간 스프레드, 3차 다항 페어밸류 대비 치프/리치 잔차
 2. **캐리 & 롤다운** — 만기별 캐리+롤 총수익, 크레딧 스프레드·캐리, FX헤지 해외국채 캐리(CIP 근사)
 3. **매크로 레짐** — 성장/물가/정책/유동성 팩터 z스코어 → 레짐 사분면 + 듀레이션·크레딧 스탠스
-4. **시나리오 & DV01** — 커브 시나리오별 포트폴리오/벤치마크/액티브 손익, 섹터·종목별 DV01
-5. **경쟁사 비교 (핵심)** — 기준가 수익률 비교(누적·연율·변동성·샤프·MDD) + **수익률기반 스타일분석**
+4. **시나리오 & DV01** — 커브 시나리오별 포트폴리오/벤치마크/액티브 손익, 섹터별 기여, **키레이트 듀레이션(KRD)**, 종목별 DV01
+5. **경쟁사 비교 (핵심)** — 기준가 수익률 비교(누적·연율·변동성·샤프·MDD) + **수익률기반 스타일분석** + **롤링 내재 듀레이션**(포지션 변화 추적)
+6. **백테스트** — 커브/크레딧 트레이드(듀레이션 롱, 스티프너, 나비, 크레딧)의 과거 성과(누적·샤프·MDD·적중률)
 
 ### 경쟁사 비교의 핵심 아이디어
 경쟁사의 **보유내역은 알 수 없고 기준가(NAV)만** 관측됩니다. 그래서:
@@ -49,7 +72,7 @@ python3 -m http.server 8099
 - 내재 크레딧β = `-β(회사AA3y−국고3y 스프레드 변화)` → 클수록 스프레드 확대 베팅
 - **R²가 낮으면** 추정 신뢰도 주의(해외채·파생·타이밍 요인이 큼)
 
-랭킹표로 "누가 나보다 공격적인가"를 바로 확인할 수 있습니다.
+랭킹표로 "누가 나보다 공격적인가"를 바로 확인할 수 있고, **롤링 내재 듀레이션**(60영업일 창)으로 경쟁사가 언제 듀레이션을 늘렸는지/줄였는지 *시점*까지 추적합니다.
 
 ## 공유 방법 (허용한 사람에게만)
 평소엔 위처럼 로컬에서 쓰고, 공유가 필요하면:

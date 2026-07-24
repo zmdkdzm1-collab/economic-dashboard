@@ -13,3 +13,7 @@ Thumbs.db
 bond-quant-internal.js
 #  · 암호화 공유용으로 내보낸 단독 HTML (로컬에서만 보관/전달)
 bond-quant-shared-*.html
+#  · 역할 매핑 설정(경쟁사 실명 포함 가능) — .sample 만 저장소에 남김
+data-imports/bond-quant.config.json
+#  · 생성 파일 백업
+bond-quant-internal.js.bak

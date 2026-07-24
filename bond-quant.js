@@ -397,6 +397,27 @@
     return map[t] || "ktb3y";
   }
 
+  // 키레이트 듀레이션: 각 보유물 듀레이션을 인접 키레이트 버킷에 만기기준 선형 배분
+  var KEY_RATES = [2, 5, 10, 20];
+  function keyRateDuration(holdings) {
+    var krd = {}; KEY_RATES.forEach(function (k) { krd[k] = 0; });
+    holdings.forEach(function (h) {
+      var contrib = h.weight * h.duration;
+      var T = h.tenor;
+      if (T <= KEY_RATES[0]) { krd[KEY_RATES[0]] += contrib; return; }
+      if (T >= KEY_RATES[KEY_RATES.length - 1]) { krd[KEY_RATES[KEY_RATES.length - 1]] += contrib; return; }
+      for (var i = 1; i < KEY_RATES.length; i++) {
+        if (KEY_RATES[i] >= T) {
+          var lo = KEY_RATES[i - 1], hi = KEY_RATES[i];
+          var wHi = (T - lo) / (hi - lo);
+          krd[hi] += contrib * wHi; krd[lo] += contrib * (1 - wHi);
+          return;
+        }
+      }
+    });
+    return krd;
+  }
+
   // ════════════════════════════════════════════════════════════════════════
   // 모듈 3: 매크로 레짐
   // ════════════════════════════════════════════════════════════════════════
@@ -525,6 +546,21 @@
     });
     var sc = card("섹터별 듀레이션 기여");
     sc.appendChild(secT.table); root.appendChild(sc);
+
+    // 키레이트 듀레이션(KRD) — 각 보유물 듀레이션을 인접 키레이트에 선형 배분
+    var krd = keyRateDuration(holdings);
+    var krT = table(["키레이트", "KRD(년)", "듀레이션 비중", "+25bp 충격시 손익%"]);
+    KEY_RATES.forEach(function (k) {
+      krT.body.appendChild(row([k + "y", fmt(krd[k], 2),
+        pct(krd[k] / portDur * 100, 1).replace("+", ""),
+        { html: pct(-krd[k] * 0.25), cls: signClass(-krd[k] * 0.25) }]));
+    });
+    var kc = card("키레이트 듀레이션(KRD) — 커브 구간별 금리민감도");
+    kc.appendChild(lineChart([{ name: "KRD(년)", color: COLORS[3], pts: KEY_RATES.map(function (k) { return krd[k]; }), markers: true }],
+      { height: 150, xlabels: KEY_RATES.map(function (k) { return k + "y"; }), zeroLine: true }));
+    kc.appendChild(krT.table);
+    kc.appendChild(el("p", "bq-note", "※ 각 보유물의 듀레이션을 인접한 두 키레이트에 만기 기준 선형 배분(합계=총듀레이션). 특정 구간만 움직일 때(커브 트위스트)의 손익을 봅니다. 예: 10y KRD가 크면 장기물 금리 상승에 취약."));
+    root.appendChild(kc);
 
     // 시나리오 손익 — 각 보유물의 만기로 short/long 충격 배분
     // 만기<=2y: short충격, >=10y: long충격, 사이: 선형보간. 크레딧 섹터는 credit충격 추가.
@@ -682,6 +718,42 @@
       }
       root.appendChild(c4);
     }
+
+    // ── 롤링 스타일분석: 내재 듀레이션의 "시간에 따른 변화" 추적 ────────────────
+    // 경쟁사가 언제 듀레이션을 늘렸는지/줄였는지(포지션 변화)를 봅니다.
+    var W = 60, step = 5;
+    function rollingDur(fund) {
+      var r = navReturns(fund.nav);
+      var byDate = {};
+      for (var e = W; e <= r.dates.length; e += step) {
+        var X = [], y = [];
+        for (var j = e - W; j < e; j++) {
+          var fac = factorByDate[r.dates[j]];
+          if (!fac) continue;
+          X.push([1, fac.level, fac.slope, fac.cred]); y.push(r.ret[j]);
+        }
+        if (X.length < W * 0.6) continue;
+        var res = ols(X, y);
+        if (res) byDate[r.dates[e - 1]] = -res.beta[1];
+      }
+      return byDate;
+    }
+    var rollMaps = funds.filter(function (f) { return !f.isBm; }).map(function (f) { return { f: f, m: rollingDur(f) }; });
+    var allDates = {};
+    rollMaps.forEach(function (rm) { Object.keys(rm.m).forEach(function (d) { allDates[d] = 1; }); });
+    var masterDates = Object.keys(allDates).sort();
+    if (masterDates.length > 2) {
+      var rollSeries = rollMaps.map(function (rm, i) {
+        return { name: (rm.f.isMine ? "★ " : "") + rm.f.name,
+          color: rm.f.isMine ? "#111827" : COLORS[i % COLORS.length],
+          pts: masterDates.map(function (d) { return rm.m[d] != null ? rm.m[d] : null; }) };
+      });
+      var c5 = card("롤링 내재 듀레이션 (60영업일 창) — 경쟁사 포지션 변화 추적");
+      c5.appendChild(lineChart(rollSeries, { height: 240, legend: true,
+        xlabels: masterDates.map(function (d) { return d.slice(2, 7); }) }));
+      c5.appendChild(el("p", "bq-note", "선이 위로 = 듀레이션 확대(공격적으로 전환), 아래로 = 축소(방어적 전환). 경쟁사가 금리 방향에 언제 베팅을 키웠는지 시점을 읽을 수 있습니다. 창이 60일이라 최근 급변은 지연 반영됨."));
+      root.appendChild(c5);
+    }
   }
 
   function maxDrawdown(nav) {
@@ -693,6 +765,92 @@
       if (dd < mdd) mdd = dd;
     }
     return mdd;
+  }
+
+  // ════════════════════════════════════════════════════════════════════════
+  // 모듈 6: 백테스트 (커브/크레딧 트레이드의 과거 성과)
+  // ════════════════════════════════════════════════════════════════════════
+  // 상수만기(CM) 총수익: 일간 ret% ≈ 캐리(y/252) − ModDur×Δy. (롤다운 제외 근사)
+  function cmTotalReturn(seriesId, tenor) {
+    var s = seriesById(seriesId); if (!s) return null;
+    var v = s.values, out = new Array(v.length).fill(null);
+    for (var i = 1; i < v.length; i++) {
+      if (v[i] != null && v[i - 1] != null) {
+        out[i] = v[i - 1] / 252 - modDur(v[i - 1], tenor) * (v[i] - v[i - 1]);
+      }
+    }
+    return out;
+  }
+  // DV01중립 가중치용 현재 ModDur
+  function curModDur(id, tenor) { var y = lastVal(id); return y == null ? tenor : modDur(y, tenor); }
+
+  function buildTrades() {
+    var d2 = curModDur("ktb2y", 2), d5 = curModDur("ktb5y", 5), d10 = curModDur("ktb10y", 10), d30 = curModDur("ktb30y", 30);
+    return [
+      { name: "KTB 3y 롱 (아웃라이트)", legs: [{ id: "ktb3y", t: 3, w: 1 }] },
+      { name: "KTB 10y 롱 (아웃라이트)", legs: [{ id: "ktb10y", t: 10, w: 1 }] },
+      { name: "KTB 30y 롱 (아웃라이트)", legs: [{ id: "ktb30y", t: 30, w: 1 }] },
+      { name: "2s10s 스티프너 (2y롱/10y숏, DV01중립)", legs: [{ id: "ktb2y", t: 2, w: 1 }, { id: "ktb10y", t: 10, w: -d2 / d10 }] },
+      { name: "5s30s 스티프너 (5y롱/30y숏, DV01중립)", legs: [{ id: "ktb5y", t: 5, w: 1 }, { id: "ktb30y", t: 30, w: -d5 / d30 }] },
+      { name: "2-5-10 나비 (5y롱/윙숏, DV01중립)", legs: [{ id: "ktb5y", t: 5, w: 1 }, { id: "ktb2y", t: 2, w: -0.5 * d5 / d2 }, { id: "ktb10y", t: 10, w: -0.5 * d5 / d10 }] },
+      { name: "회사채AA 3y 롱 vs 국고3y (크레딧)", legs: [{ id: "corp_aa_zero_3y", t: 3, w: 1 }, { id: "ktb3y", t: 3, w: -1 }] },
+    ];
+  }
+  function tradeReturns(trade) {
+    var legRets = trade.legs.map(function (lg) { return { w: lg.w, r: cmTotalReturn(lg.id, lg.t) }; });
+    var n = RD.dates.length, out = new Array(n).fill(null);
+    for (var i = 0; i < n; i++) {
+      var sum = 0, ok = true;
+      for (var j = 0; j < legRets.length; j++) { var rv = legRets[j].r; if (!rv || rv[i] == null) { ok = false; break; } sum += legRets[j].w * rv[i]; }
+      if (ok) out[i] = sum;
+    }
+    return out;
+  }
+  function btStats(rets, lookback) {
+    var start = lookback ? Math.max(0, rets.length - lookback) : 0;
+    var eq = 100, series = [], daily = [], pos = 0, cnt = 0;
+    for (var i = start; i < rets.length; i++) {
+      if (rets[i] == null) { series.push(eq); continue; }
+      eq = eq * (1 + rets[i] / 100); series.push(eq); daily.push(rets[i]);
+      if (rets[i] > 0) pos++; cnt++;
+    }
+    var cum = eq / 100 - 1;
+    var yrs = daily.length / 252;
+    var ann = yrs > 0.1 ? (Math.pow(eq / 100, 1 / yrs) - 1) : cum;
+    var vol = std(daily) * Math.sqrt(252);
+    var peak = -Infinity, mdd = 0;
+    series.forEach(function (v) { if (v > peak) peak = v; var dd = v / peak - 1; if (dd < mdd) mdd = dd; });
+    return { cum: cum * 100, ann: ann * 100, vol: vol, sharpe: vol ? ann * 100 / vol : null, mdd: mdd * 100, hit: cnt ? pos / cnt * 100 : null, eq: series };
+  }
+
+  function renderBacktest(root) {
+    root.appendChild(sectionTitle("백테스트", "커브/크레딧 트레이드의 과거 성과 (상수만기 총수익, 캐리+가격 근사·롤다운 제외)"));
+    var trades = buildTrades();
+
+    // 성과 요약 테이블 (전체 & 최근 1년)
+    var t = table(["트레이드", "전체 누적%", "연율%", "변동성%", "샤프", "MDD%", "적중률%", "1Y 누적%", "1Y 샤프"]);
+    var eqSeries = [];
+    trades.forEach(function (tr, i) {
+      var rets = tradeReturns(tr);
+      var all = btStats(rets, null), y1 = btStats(rets, 252);
+      eqSeries.push({ name: tr.name.split(" (")[0], color: COLORS[i % COLORS.length], pts: all.eq });
+      t.body.appendChild(row([
+        tr.name,
+        { html: pct(all.cum), cls: signClass(all.cum) }, pct(all.ann), fmt(all.vol, 2), fmt(all.sharpe, 2),
+        { html: fmt(all.mdd, 1), cls: "neg" }, fmt(all.hit, 0),
+        { html: pct(y1.cum), cls: signClass(y1.cum) }, fmt(y1.sharpe, 2),
+      ]));
+    });
+    var c1 = card("트레이드 성과 요약 (" + RD.dates[0] + " ~ " + RD.dates[RD.dates.length - 1] + ")");
+    c1.appendChild(t.table);
+    c1.appendChild(el("p", "bq-note", "※ 각 트레이드를 상수만기로 매일 리밸런싱했다고 가정한 총수익(캐리+가격). 스티프너/나비는 현재 ModDur 기준 DV01중립. 실제 매매비용·롤·컨벡시티 제외 — 상대비교/방향성 참고용."));
+    root.appendChild(c1);
+
+    // 누적 P&L 차트
+    var c2 = card("누적 성과 (시작=100)");
+    c2.appendChild(lineChart(eqSeries, { height: 280, legend: true,
+      xlabels: RD.dates.map(function (d) { return d.slice(2, 7); }) }));
+    root.appendChild(c2);
   }
 
   // ── DOM 헬퍼: 카드/테이블/섹션 ────────────────────────────────────────────
@@ -734,6 +892,7 @@
     { id: "regime", name: "매크로 레짐", render: renderRegime },
     { id: "scenario", name: "시나리오 & DV01", render: renderScenario },
     { id: "peers", name: "경쟁사 비교", render: renderPeers },
+    { id: "backtest", name: "백테스트", render: renderBacktest },
   ];
 
   function render(tabId) {
