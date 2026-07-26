@@ -1247,7 +1247,7 @@ function renderBondCards() {
           ${bondChangeBadge("1개월", m)}
           ${bondChangeBadge("1년", y)}
         </div>
-        <div class="bond-asof">기준일: ${latest.date}</div>
+        <div class="bond-asof">전영업일 종가 · ${latest.date}</div>
       </div>`;
     })
     .join("");
@@ -1434,7 +1434,7 @@ function renderMarketAssetCards() {
           ${assetPeriodBadge(a.id, "1개월", m, period)}
           ${assetPeriodBadge(a.id, "1년", y, period)}
         </div>
-        <div class="bond-asof">기준일: ${latest.date}</div>
+        <div class="bond-asof">전영업일 종가 · ${latest.date}</div>
       </div>`;
     })
     .join("");
