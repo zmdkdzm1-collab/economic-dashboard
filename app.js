@@ -248,6 +248,11 @@ function importanceStars(level) {
 // 윈도우 일부 브라우저 환경에서는 국기 이모지(🇺🇸 등)가 "US" 같은 문자로 표시되는 경우가 있어,
 // 폰트에 의존하지 않는 SVG 국기 아이콘을 직접 그려서 사용합니다.
 const FLAG_SVGS = {
+  독일: `<svg viewBox="0 0 30 20" xmlns="http://www.w3.org/2000/svg">
+    <rect width="30" height="6.67" y="0" fill="#000000"/>
+    <rect width="30" height="6.67" y="6.67" fill="#DD0000"/>
+    <rect width="30" height="6.66" y="13.33" fill="#FFCE00"/>
+  </svg>`,
   미국: `<svg viewBox="0 0 30 20" xmlns="http://www.w3.org/2000/svg">
     <rect width="30" height="20" fill="#B22234"/>
     <g fill="#fff">

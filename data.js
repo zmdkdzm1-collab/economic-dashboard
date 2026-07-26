@@ -2573,14 +2573,14 @@ const bondYields = [
   },
   {
     id: "bond_eu_10y",
-    country: "유럽",
-    name: "유로존 10년 국채금리",
-    nameEn: "Euro Area 10-Year Government Bond Yield",
-    institution: "유럽연합 통계청 (Eurostat)",
-    officialUrl: "https://ec.europa.eu/eurostat/web/products-datasets/-/irt_lt_mcby_m",
+    country: "독일",
+    name: "독일 10년 국채금리",
+    nameEn: "German 10-Year Government Bond Yield (Bund)",
+    institution: "도이체 분데스방크 (Deutsche Bundesbank)",
+    officialUrl: "https://www.bundesbank.de/en/statistics/money-and-capital-markets/interest-rates-and-yields",
     unit: "%",
     description:
-      "유로존(유럽연합 통화동맹 가입국) 정부가 발행하는 만기 10년물의 평균 수익률(EMU 수렴기준)입니다. ECB의 통화정책 전망과 유로존 회원국들의 재정 상황이 함께 반영되는 지표입니다.",
+      "독일 연방정부가 발행하는 만기 10년물 국채(분트, Bund)의 수익률입니다. 유로존에서 가장 안전하고 유동성이 높은 국채로, 유로 지역의 사실상 무위험 벤치마크 금리이자 다른 회원국 국채 스프레드(예: 이탈리아·프랑스)의 기준이 됩니다. ECB 통화정책 전망이 직접 반영됩니다.",
     // Eurostat 공식 API(irt_lt_mcby_m, EMU 수렴기준 장기금리, 키 불필요) 실데이터 — 매월 기준
     series: [
       { date: "2020-01-31", value: 0.18 },
