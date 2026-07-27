@@ -26,6 +26,9 @@
 - **블룸버그 매크로**: 엑셀을 `data-imports/bloomberg.xlsx`로 저장 후
   `python3 scripts/update-bloomberg.py` 실행(최신값만 이어붙임, 과거 이력 보존).
   수동으로 넣을 땐 `bloomberg-data.js`의 series/releases에 값 추가.
+- **일별 금리/환율**: 엑셀을 `data-imports/info_daily.xlsx`로 저장 후
+  `python3 scripts/update-rates.py` 실행(rate-data.js에 최신 영업일 추가 + 블룸버그와
+  교차검증). 홈 국채 카드(10Y)의 주 소스.
 - **기준금리 변경**: `data.js`의 `policyRates[].series`에 `{date,value}` 추가.
 
 ## 로컬 확인
