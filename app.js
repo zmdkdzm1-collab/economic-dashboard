@@ -159,11 +159,8 @@ const BBG_ASSET_MAP = { idx_kospi: "kospi_index", idx_sp500: "spx_index", idx_wt
 function refreshFromBloomberg() {
   if (typeof bloombergData === "undefined") return;
   const toPoints = (key) => (bloombergData.daily[key]?.series || []).map(([date, value]) => ({ date, value }));
-  Object.entries(BBG_BOND_MAP).forEach(([bondId, key]) => {
-    const bond = bondYieldById.get(bondId);
-    const pts = toPoints(key);
-    if (bond && pts.length) bond.series = pts;
-  });
+  // 국채금리는 info_daily(rate-data, 일별·전 국가 일관)를 주 소스로 쓰므로 여기서 덮지 않음.
+  // (블룸버그 국채 시계열 gvsk/gdbr/gjgb/gacgb는 scripts/update-rates.py의 교차검증용으로만 사용)
   Object.entries(BBG_ASSET_MAP).forEach(([assetId, key]) => {
     const asset = marketAssetById.get(assetId);
     const pts = toPoints(key);
@@ -173,7 +170,7 @@ function refreshFromBloomberg() {
 
 function refreshBondSeriesFromRateData() {
   if (!hasRateData) return;
-  const mapping = { bond_kr_10y: "ktb10y", bond_us_10y: "ust0y", bond_jp_10y: "jpy10y", bond_au_10y: "aud10y" };
+  const mapping = { bond_kr_10y: "ktb10y", bond_us_10y: "ust0y", bond_jp_10y: "jpy10y", bond_au_10y: "aud10y", bond_eu_10y: "ger10y" };
   Object.entries(mapping).forEach(([bondId, rateId]) => {
     const bond = bondYieldById.get(bondId);
     const daily = rateSeriesPoints(rateId);
@@ -1252,7 +1249,7 @@ function renderBondCards() {
           ${bondChangeBadge("1개월", m)}
           ${bondChangeBadge("1년", y)}
         </div>
-        <div class="bond-asof">전영업일 종가 · ${latest.date}</div>
+        <div class="bond-asof">기준일: ${latest.date}</div>
       </div>`;
     })
     .join("");
@@ -1439,7 +1436,7 @@ function renderMarketAssetCards() {
           ${assetPeriodBadge(a.id, "1개월", m, period)}
           ${assetPeriodBadge(a.id, "1년", y, period)}
         </div>
-        <div class="bond-asof">전영업일 종가 · ${latest.date}</div>
+        <div class="bond-asof">기준일: ${latest.date}</div>
       </div>`;
     })
     .join("");
