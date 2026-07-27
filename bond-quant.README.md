@@ -47,6 +47,22 @@ python3 -m http.server 8099   # → http://127.0.0.1:8099/bond-quant.html
 
 **config** (`bond-quant.config.json`) — 없으면 1열=내펀드, 2열=벤치마크, 나머지=경쟁사로 자동 추정.
 
+## 처음 세팅 — 방법 C) 경쟁사 펀드목록(정보단말) 일괄 변환
+증권 정보단말에서 회사별 채권형 펀드 목록(펀드당 8행 블록: 코드/펀드명/일자/수정기준가/
+순자산총액/채권편입비/수익증권편입비/유동성자산편입비, 마지막에 종합지수)을 내보낸 경우:
+```bash
+# 1) 펀드목록 엑셀을 data-imports/peer-funds.xlsx 로 저장
+# 2) 회사별 AUM 가중 컴포짓(수익률+자산배분) → bond-quant-internal.js 자동 생성
+python3 scripts/build-peer-composites.py --dry   # 미리보기
+python3 scripts/build-peer-composites.py         # 생성
+python3 -m http.server 8099   # → '경쟁사 비교' 탭
+```
+- 회사 분류/‘우리’ 지정은 스크립트 상단 `MINE`/`COMPANIES` 에서 조정.
+- **재간접(수익증권 편입) 펀드는 NAV가 금리를 1영업일 이상 지연 반영**합니다. 앱의 스타일분석이
+  펀드별 **평가지연을 자동탐지·보정**하므로 내재 듀레이션이 제대로 잡힙니다(표의 ‘평가지연’ 열).
+- ⚠️ **벤치마크 주의**: KAP ‘순가격지수’는 **가격지수**(캐리 제외)라 총수익(TR) 펀드와 직접
+  비교하면 안 됩니다. 벤치마크는 반드시 **총수익(Total Return)지수**를 쓰세요(확보 후 연결).
+
 ## 처음 세팅 — 방법 B) 직접 편집
 ```bash
 cp bond-quant-internal.sample.js bond-quant-internal.js

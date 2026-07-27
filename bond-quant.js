@@ -617,10 +617,28 @@
 
     // 비교 대상: 내펀드 + 벤치마크 + 경쟁사들
     var funds = [];
-    if (IN.fund && IN.fund.nav && IN.fund.nav.length) funds.push({ name: IN.fund.name, nav: IN.fund.nav, isMine: true });
+    if (IN.fund && IN.fund.nav && IN.fund.nav.length) funds.push({ name: IN.fund.name, nav: IN.fund.nav, isMine: true, allocation: IN.fund.allocation });
     if (IN.benchmark && IN.benchmark.nav && IN.benchmark.nav.length) funds.push({ name: IN.benchmark.name, nav: IN.benchmark.nav, isBm: true });
-    (IN.peers || []).forEach(function (p) { if (p.nav && p.nav.length) funds.push({ name: p.name, nav: p.nav }); });
+    (IN.peers || []).forEach(function (p) { if (p.nav && p.nav.length) funds.push({ name: p.name, nav: p.nav, allocation: p.allocation }); });
     if (funds.length < 2) { root.appendChild(card("비교할 기준가(NAV) 데이터가 부족합니다. bond-quant-internal.js 의 fund/benchmark/peers.nav 를 채우세요.")); return; }
+
+    // 자산배분 (AUM 가중, 파일에서 직접) — allocation 이 있는 펀드만
+    var haveAlloc = funds.filter(function (f) { return f.allocation; });
+    if (haveAlloc.length) {
+      var at = table(["회사", "채권편입", "수익증권(재간접)", "유동성"]);
+      haveAlloc.forEach(function (f) {
+        var a = f.allocation;
+        at.body.appendChild(row([
+          { html: (f.isMine ? "★ " : "") + f.name, cls: f.isMine ? "bq-mine" : "" },
+          a.bond != null ? fmt(a.bond, 1) + "%" : "–",
+          a.benef != null ? fmt(a.benef, 1) + "%" : "–",
+          a.liq != null ? fmt(a.liq, 1) + "%" : "–"]));
+      });
+      var ca = card("자산배분 (AUM 가중, 최신)");
+      ca.appendChild(at.table);
+      ca.appendChild(el("p", "bq-note", "회귀 없이 공시값에서 직접 집계. 수익증권(재간접) 비중이 높으면 하위펀드에 노출이 가려져 세부 섹터 역추정이 어렵고, NAV 평가지연도 커집니다."));
+      root.appendChild(ca);
+    }
 
     // 누적수익 차트 (공통 시작=100)
     var series = funds.map(function (f, i) {
@@ -654,50 +672,68 @@
     root.appendChild(c2);
 
     // ── 수익률기반 스타일분석: 듀레이션/크레딧 노출 역추정 ────────────────────
-    // 팩터 일간수익률(%) 구성: 국고10년 변화, 커브(10y-2y) 변화, 크레딧(회사AA3y-국고3y) 변화
+    // 팩터 일간수익률(%): 국고10년(레벨)·커브(10y-2y)·크레딧(회사AA3y-국고3y) 변화.
+    // factorByRateIdx[i] = i-1→i 영업일 변화. (재간접 펀드는 NAV가 며칠 지연 반영되므로
+    //  아래에서 펀드별로 최적 지연(lag)을 자동탐지해 그만큼 앞선 팩터에 맞춥니다.)
     var d10 = seriesById("ktb10y").values, d2 = seriesById("ktb2y").values;
     var corp = seriesById("corp_aa_zero_3y").values, k3 = seriesById("ktb3y").values;
-    var factorByDate = {};
+    var rdIdx = {}; RD.dates.forEach(function (dt, i) { rdIdx[dt] = i; });
+    var factorByIdx = new Array(RD.dates.length);
     for (var i = 1; i < RD.dates.length; i++) {
-      var dt = RD.dates[i];
       if (d10[i] == null || d10[i - 1] == null) continue;
-      var dLevel = (d10[i] - d10[i - 1]);                          // %p
-      var dSlope = ((d10[i] - d2[i]) - (d10[i - 1] - d2[i - 1]));  // %p
       var dCred = (corp[i] != null && corp[i - 1] != null && k3[i] != null && k3[i - 1] != null)
-        ? ((corp[i] - k3[i]) - (corp[i - 1] - k3[i - 1])) : 0;      // %p
-      factorByDate[dt] = { level: dLevel, slope: dSlope, cred: dCred };
+        ? ((corp[i] - k3[i]) - (corp[i - 1] - k3[i - 1])) : 0;
+      factorByIdx[i] = { level: d10[i] - d10[i - 1], slope: (d10[i] - d2[i]) - (d10[i - 1] - d2[i - 1]), cred: dCred };
+    }
+    // 펀드수익 날짜 d 에 대해, lag L 만큼 앞선 영업일의 팩터를 반환
+    function facAtLag(navDate, L) {
+      var i = rdIdx[navDate]; if (i == null) return null;
+      return factorByIdx[i - L] || null;
+    }
+    // 특정 lag 에서 팩터가 존재하는 유효관측만 추출 {date,ret,fac}
+    function obsAtLag(r, L) {
+      var out = [];
+      for (var j = 0; j < r.dates.length; j++) {
+        var fac = facAtLag(r.dates[j], L); if (!fac) continue;
+        out.push({ date: r.dates[j], ret: r.ret[j], fac: fac });
+      }
+      return out;
+    }
+    // 주어진 lag 로 회귀 실행
+    function fitLag(r, L) {
+      var obs = obsAtLag(r, L);
+      if (obs.length < 30) return null;
+      var res = ols(obs.map(function (o) { return [1, o.fac.level, o.fac.slope, o.fac.cred]; }), obs.map(function (o) { return o.ret; }));
+      if (res) { res.lag = L; res.obs = obs; }
+      return res;
+    }
+    // lag 0~2 중 R² 최대를 자동 선택 (재간접 지연 보정)
+    function bestFit(r) {
+      var best = null;
+      for (var L = 0; L <= 2; L++) { var res = fitLag(r, L); if (res && (!best || res.r2 > best.r2)) best = res; }
+      return best;
     }
 
-    var styT = table(["펀드", "내재 듀레이션(년)", "내재 커브β", "내재 크레딧β", "R²", "표본일수"]);
+    var styT = table(["펀드", "내재 듀레이션(년)", "내재 커브β", "내재 크레딧β", "R²", "평가지연", "표본"]);
     var mineDur = null;
     var implied = [];
+    var fitCache = {};
     funds.forEach(function (f) {
       var r = navReturns(f.nav);
-      var X = [], y = [];
-      for (var j = 0; j < r.dates.length; j++) {
-        var fac = factorByDate[r.dates[j]];
-        if (!fac) continue;
-        // 회귀: ret% ≈ b0 + bL*Δlevel + bS*Δslope + bC*Δcred
-        X.push([1, fac.level, fac.slope, fac.cred]);
-        y.push(r.ret[j]);
-      }
-      if (X.length < 30) { styT.body.appendChild(row([f.name, "표본부족", "", "", "", X.length])); return; }
-      var res = ols(X, y);
-      if (!res) { styT.body.appendChild(row([f.name, "추정실패", "", "", "", X.length])); return; }
-      // ret% ≈ −Dur×Δy(%p) ⇒ 내재듀레이션 = −bL
-      var impDur = -res.beta[1];
-      var curveB = -res.beta[2];
-      var credB = -res.beta[3];
+      var res = bestFit(r);
+      fitCache[f.name] = { obs: res ? res.obs : obsAtLag(r, 0), lag: res ? res.lag : 0 };
+      if (!res) { styT.body.appendChild(row([f.name, "표본부족", "", "", "", "", r.ret.length])); return; }
+      var impDur = -res.beta[1], curveB = -res.beta[2], credB = -res.beta[3];
       if (f.isMine) mineDur = impDur;
       implied.push({ name: f.name, dur: impDur, isMine: f.isMine, isBm: f.isBm });
       styT.body.appendChild(row([
         { html: (f.isMine ? "★ " : "") + f.name, cls: f.isMine ? "bq-mine" : "" },
         { html: "<b>" + fmt(impDur, 1) + "</b>" }, fmt(curveB, 1), fmt(credB, 1),
-        fmt(res.r2, 2), res.n]));
+        fmt(res.r2, 2), res.lag === 0 ? "당일" : res.lag + "일", res.n]));
     });
     var c3 = card("수익률기반 스타일분석 — 기준가만으로 노출 역추정");
     c3.appendChild(styT.table);
-    c3.appendChild(el("p", "bq-note", "핵심: 경쟁사 보유내역을 몰라도 기준가 일간수익률을 커브/크레딧 팩터에 회귀하면 <b>내재 듀레이션</b>(=금리민감도)과 크레딧 노출을 추정할 수 있습니다. 내재듀레이션↑ = 더 공격적(장기·금리베팅), 크레딧β↑ = 스프레드 확대 베팅. R²가 낮으면 추정 신뢰도 주의(비국내채권·파생·타이밍 요인)."));
+    c3.appendChild(el("p", "bq-note", "핵심: 경쟁사 보유내역을 몰라도 기준가 일간수익률을 커브/크레딧 팩터에 회귀하면 <b>내재 듀레이션</b>과 크레딧 노출을 추정합니다. <b>평가지연</b>은 자동탐지된 값으로, 재간접(펀드of펀드) 펀드는 하위펀드 평가가 며칠 늦게 반영돼 보통 1일 이상 나옵니다(이 지연을 보정해야 듀레이션이 제대로 잡힘). R²가 낮으면 신뢰도 주의(해외채·파생·타이밍 요인)."));
     root.appendChild(c3);
 
     // 내재 듀레이션 랭킹 바
@@ -723,18 +759,12 @@
     // 경쟁사가 언제 듀레이션을 늘렸는지/줄였는지(포지션 변화)를 봅니다.
     var W = 60, step = 5;
     function rollingDur(fund) {
-      var r = navReturns(fund.nav);
+      var obs = (fitCache[fund.name] || {}).obs || [];   // 팩터 존재 유효관측(지연 반영)
       var byDate = {};
-      for (var e = W; e <= r.dates.length; e += step) {
-        var X = [], y = [];
-        for (var j = e - W; j < e; j++) {
-          var fac = factorByDate[r.dates[j]];
-          if (!fac) continue;
-          X.push([1, fac.level, fac.slope, fac.cred]); y.push(r.ret[j]);
-        }
-        if (X.length < W * 0.6) continue;
-        var res = ols(X, y);
-        if (res) byDate[r.dates[e - 1]] = -res.beta[1];
+      for (var e = W; e <= obs.length; e += step) {
+        var win = obs.slice(e - W, e);
+        var res = ols(win.map(function (o) { return [1, o.fac.level, o.fac.slope, o.fac.cred]; }), win.map(function (o) { return o.ret; }));
+        if (res) byDate[obs[e - 1].date] = -res.beta[1];
       }
       return byDate;
     }
