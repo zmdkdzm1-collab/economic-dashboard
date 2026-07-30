@@ -1650,19 +1650,28 @@ main {
   #printCalendar .pc-sub { font-size: 8px; font-weight: 500; color: #555; }
   #printCalendar .pc-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4mm; }
   #printCalendar .pc-col { break-inside: avoid-column; }
-  #printCalendar .pc-col-head { font-size: 10px; font-weight: 800; text-align: center; padding: 2px; background: #1e3a8a; color: #fff; border-radius: 3px; margin-bottom: 3px; }
-  #printCalendar .pc-day { break-inside: avoid; margin-bottom: 3px; }
-  #printCalendar .pc-day-h { font-size: 8px; font-weight: 800; background: #eef1f6; padding: 1px 4px; border-radius: 2px; }
-  #printCalendar .pc-today .pc-day-h { background: #dbeafe; }
-  #printCalendar .pc-ev { display: flex; gap: 4px; align-items: baseline; padding: 1px 3px; border-bottom: 0.4px solid #e5e7eb; }
-  #printCalendar .pc-ev.imp-상 { border-left: 2px solid #dc2626; }
-  #printCalendar .pc-ev.imp-중 { border-left: 2px solid #f59e0b; }
-  #printCalendar .pc-time { width: 30px; flex: none; color: #666; }
-  #printCalendar .pc-name { flex: 1 1 auto; overflow: hidden; }
-  #printCalendar .pc-val { flex: none; font-weight: 800; text-align: right; }
-  #printCalendar .pc-val.s-up { color: #dc2626; }
-  #printCalendar .pc-val.s-down { color: #2563eb; }
-  #printCalendar .pc-val .pc-cons { font-weight: 500; color: #888; margin-left: 2px; }
+  #printCalendar .pc-col-head { font-size: 10px; font-weight: 800; text-align: center; padding: 2px; background: #1e3a8a; color: #fff; border-radius: 3px; margin-bottom: 2px; }
+  /* 지표표: 고정 레이아웃으로 실제/컨센/이전 열이 지표마다 동일하게 정렬 */
+  #printCalendar .pc-table { width: 100%; border-collapse: collapse; table-layout: fixed; }
+  #printCalendar .pc-table col.c-time { width: 11%; }
+  #printCalendar .pc-table col.c-name { width: 37%; }
+  #printCalendar .pc-table col.c-num { width: 13.5%; }
+  #printCalendar .pc-table col.c-cmp { width: 12%; }
+  #printCalendar .pc-table th { font-size: 7px; font-weight: 800; background: #374151; color: #fff; padding: 1px 3px; text-align: right; }
+  #printCalendar .pc-table th:nth-child(1), #printCalendar .pc-table th:nth-child(2) { text-align: left; }
+  #printCalendar .pc-table th:nth-child(6) { text-align: center; }
+  #printCalendar .pc-table td { font-size: 7.5px; padding: 1px 3px; border-bottom: 0.3px solid #e5e7eb; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+  #printCalendar .pc-time { color: #666; }
+  #printCalendar .pc-num { text-align: right; }
+  #printCalendar .pc-cons, #printCalendar .pc-prev { color: #666; }
+  #printCalendar .pc-act { font-weight: 800; }
+  #printCalendar .pc-act.s-up, #printCalendar .pc-cmp.s-up { color: #dc2626; }
+  #printCalendar .pc-act.s-down, #printCalendar .pc-cmp.s-down { color: #2563eb; }
+  #printCalendar .pc-cmp { text-align: center; font-weight: 800; }
+  #printCalendar .pc-ev.imp-상 .pc-time { border-left: 2px solid #dc2626; padding-left: 3px; }
+  #printCalendar .pc-ev.imp-중 .pc-time { border-left: 2px solid #f59e0b; padding-left: 3px; }
+  #printCalendar .pc-day-row td { background: #eef1f6; font-weight: 800; font-size: 7.5px; padding: 1px 3px; }
+  #printCalendar .pc-day-row.pc-today td { background: #dbeafe; }
   #printCalendar .flag-icon { display: inline-block; width: 11px; height: 7px; vertical-align: middle; }
   #printCalendar .flag-icon svg { width: 11px; height: 7px; }
   #printCalendar .pc-empty { color: #999; padding: 4px; }
