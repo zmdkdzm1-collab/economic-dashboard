@@ -1321,12 +1321,12 @@ const indicators = [
       "미국의 기준금리를 결정하는 가장 중요한 통화정책 회의입니다. 금리 결정 자체뿐 아니라 향후 정책 방향을 암시하는 성명서 문구, 점도표(dot plot), 파월 의장의 기자회견 발언까지 전 세계 금융시장이 실시간으로 주목합니다.",
     hasConsensus: true,
     marketOutlook:
-      "2026년 1·3·4·6·7월 다섯 차례 연속 3.50~3.75%로 동결했습니다(7월 29일 회의 동결 결정). 4월 회의는 8-4 표결로 위원 간 이견이 두드러졌고(2명은 인하를 주장), 6월은 만장일치로 동결했습니다. 다만 상반기 인플레이션이 3%대 중후반으로 재상승하면서, 다음 회의(9월 16일)를 앞두고 금리선물 시장은 오히려 25bp '인상' 가능성을 우위(약 57%)로 반영하기 시작했습니다. 향후 고용·물가 지표에 따라 방향이 갈릴 전망입니다.",
+      "2026년 1·3·4·6·7월 다섯 차례 연속 3.50~3.75%로 동결했습니다. 다만 7월 29일 회의는 '매파적 동결'로, 해맥·카시카리·로건 3인이 25bp 인상을 주장하며 반대표를 던졌습니다(세 위원이 같은 방향으로 반대한 것은 2016년 9월 이후 처음). 상반기 인플레이션이 3%대 중후반으로 재상승하고 중동 리스크가 겹치면서, 다음 회의(9월)를 앞두고 금리선물 시장은 오히려 25bp '인상' 가능성을 우위(약 57%)로 반영하고 있습니다. 9월 인상 여부는 향후 두 차례 CPI와 중동 정세에 좌우될 전망입니다.",
     nextConsensus: "9월 회의 인상/동결 팽팽 (선물시장 인상 57%)",
     outlookSources: [
-      { title: "Fed Meeting Tracker 2026 (Forbes)", url: "https://www.forbes.com/sites/investor-hub/article/fed-meeting-tracker-interest-rate-strategy/" },
-      { title: "Fed Rate Forecast 2026 (PrimeRates)", url: "https://primerates.com/primerate/fed-rate-forecast-2026/" },
-      { title: "Goldman Sachs: Outlook for Fed Rate Cuts in 2026", url: "https://www.goldmansachs.com/insights/articles/the-outlook-for-fed-rate-cuts-in-2026" },
+      { title: "CNBC: Divided Fed holds rates steady (2026-07-29)", url: "https://www.cnbc.com/2026/07/29/fed-rate-decision-july-2026.html" },
+      { title: "U.S. News: Fed Holds Rates Steady, but 3 Members Favored a Hike (2026-07-29)", url: "https://www.usnews.com/news/national-news/articles/2026-07-29/fed-holds-rates-steady-but-3-members-favored-a-rate-hike" },
+      { title: "TradingKey: July Hold, 3 Hawkish Dissents, September Pressure", url: "https://www.tradingkey.com/analysis/economic/central-banks/262062125-fed-july-rate-hold-3-hawkish-dissents-kashkari-warsh-rate-hike-pressure-tradingkey" },
     ],
     // <<FEDWATCH_AUTO_START>> 이 블록은 .github/workflows/update-fedwatch.yml(매일)이 CME API로 자동 갱신합니다. 수동 편집 시 주석 마커를 지우지 마세요.
     cmeProbability: {
@@ -1352,11 +1352,11 @@ const indicators = [
       url: "https://fredblog.stlouisfed.org/2026/06/fomc-summary-of-economic-projections-june-2026/",
     },
     analystViews: [
-      { firm: "Bank of America", stance: "hawkish", view: "'긴축 지속'으로 전환 — 9월·10월·12월 세 차례 0.25%p 인상을 전망.", url: "https://institute.bankofamerica.com/economic-insights.html" },
-      { firm: "JPMorgan (Michael Feroli)", stance: "hawkish", view: "2026년 내내 동결, 다음 행보는 2027년 3분기 인상이 될 것으로 전망 (스트리트에서 가장 매파적).", url: "https://www.jpmorgan.com/insights/global-research/economy" },
-      { firm: "Morgan Stanley", stance: "hawkish", view: "연말까지 완전 동결 유지를 전망하는 대표적 소수 의견.", url: "https://www.morganstanley.com/ideas" },
-      { firm: "주요 기관 컨센서스(6개 중 4개)", stance: "neutral", view: "연내 0.25%p 1회 인하가 유력하며, 9월 또는 10월 회의가 유력 시점이라는 데 의견이 모임.", url: "https://primerates.com/primerate/fed-rate-forecast-2026/" },
-      { firm: "Goldman Sachs", stance: "dovish", view: "6월·9월 두 차례 0.25%p 인하를 전망(다만 실제 6월 회의는 동결로 결정됨).", url: "https://www.goldmansachs.com/insights/articles/the-outlook-for-fed-rate-cuts-in-2026" },
+      { firm: "FOMC 반대표 3인 (해맥·카시카리·로건)", stance: "hawkish", view: "7월 29일 회의에서 25bp 인상을 주장하며 동결에 반대 — 세 위원이 같은 방향으로 반대한 것은 2016년 9월 이후 처음으로, 위원회 내 매파 결집을 보여줌.", url: "https://www.usnews.com/news/national-news/articles/2026-07-29/fed-holds-rates-steady-but-3-members-favored-a-rate-hike" },
+      { firm: "Bank of America", stance: "hawkish", view: "상반기 물가 재상승을 근거로 '긴축 재개'에 무게 — 2026년 9·10·12월 세 차례, 총 75bp 인상을 전망.", url: "https://www.tradingkey.com/analysis/economic/central-banks/262062125-fed-july-rate-hold-3-hawkish-dissents-kashkari-warsh-rate-hike-pressure-tradingkey" },
+      { firm: "JPMorgan", stance: "neutral", view: "다음 정책 변경 시점을 10월로 예상 — 여름 내내 고용이 연준 기대보다 견조할 것으로 보고 9월보다 늦게 움직일 것으로 판단.", url: "https://www.thestreet.com/fed/jpmorgan-has-a-stark-message-on-the-next-fed-rate-cut" },
+      { firm: "Goldman Sachs", stance: "neutral", view: "9월을 정책 전환 유력 시점으로 보며, 향후 3~4개월치 물가 데이터를 확인한 뒤 방향을 결정할 것으로 전망.", url: "https://www.goldmansachs.com/insights/articles/the-outlook-for-fed-rate-cuts-in-2026" },
+      { firm: "Morgan Stanley", stance: "dovish", view: "연말까지 완전 동결 유지를 전망 — 인상을 점치는 스트리트 컨센서스와 상반되는 대표적 소수 의견.", url: "https://www.cnbc.com/2026/07/29/fed-rate-decision-july-2026.html" },
     ],
     officialStatements: [
       { date: "2026-07-13", speaker: "월러(Christopher Waller) 이사", summary: "인플레이션에 있어 '지난 전쟁과 싸우지 말아야' 한다면서도, 추가 금리 인상 가능성을 배제하지 않는다고 언급 (CNBC 인터뷰)." },
