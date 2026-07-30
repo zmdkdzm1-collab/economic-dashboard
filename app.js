@@ -2108,11 +2108,50 @@ function renderKeyIndicators() {
 // ----------------------------------------------------------------------------
 // 홈 탭: 주간 경제지표·이벤트 캘린더 (지난주/이번주/다음주 리스트)
 // ----------------------------------------------------------------------------
-function getSundayStart(date) {
+// 주간 캘린더는 금요일~목요일 주기. 주어진 날짜가 속한 주의 시작(직전/당일 금요일)을 반환.
+function getWeekStartFriday(date) {
   const d = new Date(date);
-  d.setDate(d.getDate() - d.getDay());
+  const diff = (d.getDay() - 5 + 7) % 7; // 금요일(getDay()=5) 기준 되돌아갈 일수
+  d.setDate(d.getDate() - diff);
   d.setHours(0, 0, 0, 0);
   return d;
+}
+
+// 실제 발표치가 컨센서스(없으면 이전치) 대비 상회/하회/부합인지 판정
+function evSurprise(actual, consensus, previous) {
+  const a = parseNumeric(actual);
+  if (isNaN(a)) return { dir: null };
+  let bench = parseNumeric(consensus), benchName = "컨센";
+  if (isNaN(bench)) {
+    bench = parseNumeric(previous);
+    benchName = "이전";
+  }
+  if (isNaN(bench)) return { dir: null };
+  const eps = Math.max(Math.abs(bench) * 0.0005, 1e-9);
+  const d = a - bench;
+  const dir = Math.abs(d) <= eps ? "flat" : d > 0 ? "up" : "down";
+  return { dir, benchName };
+}
+
+// 홈 주간 캘린더 이벤트 한 개의 HTML (raw/지표 공통)
+function weekEventHtml(dataAttr, importance, timeKST, country, name, a, c, p) {
+  const s = evSurprise(a, c, p);
+  const arrow = s.dir === "up" ? "▲" : s.dir === "down" ? "▼" : s.dir === "flat" ? "＝" : "";
+  const surpCls = s.dir ? ` surprise-${s.dir}` : "";
+  const surpWord = s.dir === "up" ? "상회" : s.dir === "down" ? "하회" : s.dir === "flat" ? "부합" : "";
+  const tip = s.dir ? `${s.benchName} 대비 ${surpWord}` : a;
+  const badge = s.dir ? `<span class="ev-surprise${surpCls}" title="${tip}">${s.benchName}${surpWord} ${arrow}</span>` : "";
+  return `
+    <button class="home-week-event importance-${importance}" ${dataAttr}>
+      <span class="event-time">${timeKST}</span>
+      <span class="event-name">${flagIcon(country)} ${name}</span>
+      <span class="event-values">
+        <span class="ev-item ev-actual${surpCls}" title="${tip}"><span class="ev-label">실제</span>${a} ${arrow}</span>
+        <span class="ev-item" title="${c}"><span class="ev-label">컨센</span>${c}</span>
+        <span class="ev-item" title="${p}"><span class="ev-label">이전</span>${p}</span>
+        ${badge}
+      </span>
+    </button>`;
 }
 
 // 이벤트 하루치 실제치/컨센서스/이전치 값을 뽑아냄: 이미 발표됐으면 history에서, 예정이면 다음 컨센서스 안내
@@ -2134,7 +2173,7 @@ function formatEventValues(ind, ev) {
 
 function renderHomeWeekList() {
   const today = new Date();
-  const base = getSundayStart(today);
+  const base = getWeekStartFriday(today);
   const weekStart = new Date(base);
   weekStart.setDate(weekStart.getDate() + state.homeWeekOffset * 7);
 
@@ -2162,31 +2201,14 @@ function renderHomeWeekList() {
       const eventsHtml = dayEvents
         .map((ev) => {
           if (ev.raw) {
-            const a = ev.actual ?? "-", c = ev.consensus ?? "-", p = ev.previous ?? "-";
-            return `
-            <button class="home-week-event importance-${ev.importance}" data-raw="${ev.id}">
-              <span class="event-time">${ev.timeKST}</span>
-              <span class="event-name">${flagIcon(ev.country)} ${ev.name}</span>
-              <span class="event-values">
-                <span class="ev-item" title="${a}"><span class="ev-label">실제</span>${a}</span>
-                <span class="ev-item" title="${c}"><span class="ev-label">컨센</span>${c}</span>
-                <span class="ev-item" title="${p}"><span class="ev-label">이전</span>${p}</span>
-              </span>
-            </button>`;
+            return weekEventHtml(`data-raw="${ev.id}"`, ev.importance, ev.timeKST, ev.country, ev.name,
+              ev.actual ?? "-", ev.consensus ?? "-", ev.previous ?? "-");
           }
           const ind = indicatorById.get(ev.indicatorId);
           if (!ind) return "";
           const vals = formatEventValues(ind, ev);
-          return `
-            <button class="home-week-event importance-${ind.importance}" data-id="${ind.id}">
-              <span class="event-time">${ev.timeKST}</span>
-              <span class="event-name">${flagIcon(ind.country)} ${ind.name}</span>
-              <span class="event-values">
-                <span class="ev-item" title="${vals.actual}"><span class="ev-label">실제</span>${vals.actual}</span>
-                <span class="ev-item" title="${vals.consensus}"><span class="ev-label">컨센</span>${vals.consensus}</span>
-                <span class="ev-item" title="${vals.previous}"><span class="ev-label">이전</span>${vals.previous}</span>
-              </span>
-            </button>`;
+          return weekEventHtml(`data-id="${ind.id}"`, ind.importance, ev.timeKST, ind.country, ind.name,
+            vals.actual, vals.consensus, vals.previous);
         })
         .join("");
       return `
