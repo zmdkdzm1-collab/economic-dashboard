@@ -2146,10 +2146,10 @@ function weekEventHtml(dataAttr, importance, timeKST, country, name, a, c, p) {
       <span class="event-time">${timeKST}</span>
       <span class="event-name">${flagIcon(country)} ${name}</span>
       <span class="event-values">
-        <span class="ev-item ev-actual${surpCls}" title="${tip}"><span class="ev-label">실제</span>${a} ${arrow}</span>
+        <span class="ev-badge-slot">${badge}</span>
+        <span class="ev-item ev-actual${surpCls}" title="${tip}"><span class="ev-label">실제</span>${a}</span>
         <span class="ev-item" title="${c}"><span class="ev-label">컨센</span>${c}</span>
         <span class="ev-item" title="${p}"><span class="ev-label">이전</span>${p}</span>
-        ${badge}
       </span>
     </button>`;
 }
