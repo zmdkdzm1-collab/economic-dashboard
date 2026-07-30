@@ -1614,3 +1614,56 @@ main {
   text-align: left;
 }
 .ai-option-chip:hover { background: var(--accent); color: #fff; }
+
+/* ── 주간 캘린더 PDF 추출 버튼 ── */
+.week-pdf-btn {
+  font-family: inherit;
+  font-size: 0.78rem;
+  font-weight: 700;
+  padding: 4px 12px;
+  margin-left: 8px;
+  border: 1px solid var(--accent);
+  border-radius: 8px;
+  background: var(--accent-bg);
+  color: var(--accent);
+  cursor: pointer;
+  vertical-align: middle;
+}
+.week-pdf-btn:hover { background: var(--accent); color: #fff; }
+
+/* 화면에서는 숨김. 인쇄 시에만 A4 가로 3단으로 표시 */
+#printCalendar { display: none; }
+
+@media print {
+  @page { size: A4 landscape; margin: 7mm; }
+  body { background: #fff !important; }
+  body > *:not(#printCalendar) { display: none !important; }
+  #printCalendar {
+    display: block !important;
+    color: #000;
+    font-size: 8px;
+    line-height: 1.25;
+    -webkit-print-color-adjust: exact;
+    print-color-adjust: exact;
+  }
+  #printCalendar .pc-title { font-size: 13px; font-weight: 800; text-align: center; margin-bottom: 3mm; }
+  #printCalendar .pc-sub { font-size: 8px; font-weight: 500; color: #555; }
+  #printCalendar .pc-grid { display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 4mm; }
+  #printCalendar .pc-col { break-inside: avoid-column; }
+  #printCalendar .pc-col-head { font-size: 10px; font-weight: 800; text-align: center; padding: 2px; background: #1e3a8a; color: #fff; border-radius: 3px; margin-bottom: 3px; }
+  #printCalendar .pc-day { break-inside: avoid; margin-bottom: 3px; }
+  #printCalendar .pc-day-h { font-size: 8px; font-weight: 800; background: #eef1f6; padding: 1px 4px; border-radius: 2px; }
+  #printCalendar .pc-today .pc-day-h { background: #dbeafe; }
+  #printCalendar .pc-ev { display: flex; gap: 4px; align-items: baseline; padding: 1px 3px; border-bottom: 0.4px solid #e5e7eb; }
+  #printCalendar .pc-ev.imp-상 { border-left: 2px solid #dc2626; }
+  #printCalendar .pc-ev.imp-중 { border-left: 2px solid #f59e0b; }
+  #printCalendar .pc-time { width: 30px; flex: none; color: #666; }
+  #printCalendar .pc-name { flex: 1 1 auto; overflow: hidden; }
+  #printCalendar .pc-val { flex: none; font-weight: 800; text-align: right; }
+  #printCalendar .pc-val.s-up { color: #dc2626; }
+  #printCalendar .pc-val.s-down { color: #2563eb; }
+  #printCalendar .pc-val .pc-cons { font-weight: 500; color: #888; margin-left: 2px; }
+  #printCalendar .flag-icon { display: inline-block; width: 11px; height: 7px; vertical-align: middle; }
+  #printCalendar .flag-icon svg { width: 11px; height: 7px; }
+  #printCalendar .pc-empty { color: #999; padding: 4px; }
+}

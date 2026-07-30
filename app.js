@@ -2191,19 +2191,7 @@ function renderHomeWeekList() {
   const html = days
     .map((day) => {
       const ymd = formatYmd(day);
-      // 필터: 한국·미국은 중요도 상·중(미국은 연설 제외), 그 외 국가는 상·중 중에서도
-      //       금리결정·CPI·GDP만 표시.
-      const dayEvents = calendarEvents.filter((ev) => {
-        if (ev.date !== ymd) return false;
-        const ind = ev.raw ? null : indicatorById.get(ev.indicatorId);
-        const country = ev.raw ? ev.country : ind?.country;
-        const imp = ev.raw ? ev.importance : ind?.importance;
-        const name = (ev.raw ? ev.name : ind?.name) || "";
-        if (imp !== "상" && imp !== "중") return false;
-        if (country === "한국") return true;
-        if (country === "미국") return !/연설/.test(name);
-        return /금리\s*결정|LPR|대출우대금리|CPI|소비자물가|GDP/.test(name);
-      });
+      const dayEvents = calendarEvents.filter((ev) => passesHomeWeekFilter(ev, ymd));
       if (dayEvents.length === 0) return "";
       anyEvent = true;
       const eventsHtml = dayEvents
@@ -2237,6 +2225,91 @@ function renderHomeWeekList() {
   });
 }
 
+// 홈 주간 캘린더 필터: 한국·미국은 상·중(미국은 연설 제외), 그 외 국가는 금리결정·CPI·GDP만
+function passesHomeWeekFilter(ev, ymd) {
+  if (ev.date !== ymd) return false;
+  const ind = ev.raw ? null : indicatorById.get(ev.indicatorId);
+  const country = ev.raw ? ev.country : ind?.country;
+  const imp = ev.raw ? ev.importance : ind?.importance;
+  const name = (ev.raw ? ev.name : ind?.name) || "";
+  if (imp !== "상" && imp !== "중") return false;
+  if (country === "한국") return true;
+  if (country === "미국") return !/연설/.test(name);
+  return /금리\s*결정|LPR|대출우대금리|CPI|소비자물가|GDP/.test(name);
+}
+
+// ----------------------------------------------------------------------------
+// 주간 캘린더 PDF(인쇄) 추출: 지난주·이번주·다음주를 A4 가로 3단으로 배치
+// (외부 라이브러리 없이 브라우저 인쇄 → 'PDF로 저장' 사용)
+// ----------------------------------------------------------------------------
+function weekDaysForOffset(offset) {
+  const base = getWeekStartFriday(new Date());
+  base.setDate(base.getDate() + offset * 7);
+  const days = [];
+  for (let i = 0; i < 7; i++) {
+    const d = new Date(base);
+    d.setDate(d.getDate() + i);
+    days.push(d);
+  }
+  return days;
+}
+
+function printEventRowHtml(ev) {
+  const ind = ev.raw ? null : indicatorById.get(ev.indicatorId);
+  const country = ev.raw ? ev.country : ind?.country;
+  const name = ev.raw ? ev.name : ind?.name;
+  const imp = ev.raw ? ev.importance : ind?.importance;
+  const vals = ev.raw
+    ? { actual: ev.actual ?? "-", consensus: ev.consensus ?? "-", previous: ev.previous ?? "-" }
+    : formatEventValues(ind, ev);
+  const s = evSurprise(vals.actual, vals.consensus, vals.previous);
+  const arrow = s.dir === "up" ? "▲" : s.dir === "down" ? "▼" : s.dir === "flat" ? "＝" : "";
+  const sCls = s.dir ? ` s-${s.dir}` : "";
+  return `<div class="pc-ev imp-${imp}">
+    <span class="pc-time">${ev.timeKST || ""}</span>
+    <span class="pc-name">${flagIcon(country)} ${name}</span>
+    <span class="pc-val${sCls}">${vals.actual}${arrow}<span class="pc-cons">(${vals.consensus})</span></span>
+  </div>`;
+}
+
+function printWeekColumnHtml(offset, label) {
+  const days = weekDaysForOffset(offset);
+  const todayYmd = formatYmd(new Date());
+  const range = `${formatYmd(days[0])} ~ ${formatYmd(days[6])}`;
+  const daysHtml = days
+    .map((day) => {
+      const ymd = formatYmd(day);
+      const evs = calendarEvents.filter((ev) => passesHomeWeekFilter(ev, ymd));
+      if (!evs.length) return "";
+      return `<div class="pc-day${ymd === todayYmd ? " pc-today" : ""}">
+        <div class="pc-day-h">${WEEKDAY_LABELS[day.getDay()]} · ${ymd.slice(5)}${ymd === todayYmd ? " (오늘)" : ""}</div>
+        ${evs.map(printEventRowHtml).join("")}
+      </div>`;
+    })
+    .join("");
+  return `<div class="pc-col">
+    <div class="pc-col-head">${label} · ${range}</div>
+    ${daysHtml || `<div class="pc-empty">등록된 일정 없음</div>`}
+  </div>`;
+}
+
+function exportWeekPdf() {
+  let el = document.getElementById("printCalendar");
+  if (!el) {
+    el = document.createElement("div");
+    el.id = "printCalendar";
+    document.body.appendChild(el);
+  }
+  el.innerHTML = `
+    <div class="pc-title">주간 경제지표·이벤트 캘린더 <span class="pc-sub">(한국·미국 상·중 / 그 외 금리·CPI·GDP · 값=실제(컨센))</span></div>
+    <div class="pc-grid">
+      ${printWeekColumnHtml(-1, "지난주")}
+      ${printWeekColumnHtml(0, "이번주")}
+      ${printWeekColumnHtml(1, "다음주")}
+    </div>`;
+  window.print();
+}
+
 function setupHomeWeekNav() {
   document.querySelectorAll(".home-week-btn").forEach((btn) => {
     btn.addEventListener("click", () => {
@@ -2245,6 +2318,8 @@ function setupHomeWeekNav() {
       renderHomeWeekList();
     });
   });
+  const pdfBtn = document.getElementById("weekPdfBtn");
+  if (pdfBtn) pdfBtn.addEventListener("click", exportWeekPdf);
   renderHomeWeekList();
 }
 
