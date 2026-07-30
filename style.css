@@ -1676,3 +1676,5 @@ main {
   #printCalendar .flag-icon svg { width: 11px; height: 7px; }
   #printCalendar .pc-empty { color: #999; padding: 4px; }
 }
+
+.notice-asof { display: inline-block; margin-left: 6px; padding: 1px 8px; border-radius: 6px; background: var(--accent-bg); color: var(--accent); font-size: 0.8rem; }

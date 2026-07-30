@@ -2790,7 +2790,21 @@ function setupAiTab() {
   submitBtn.addEventListener("click", runQuestion);
 }
 
+// 헤더에 데이터 최신 기준일 표시(블룸버그 asOf / rate-data 마지막 영업일 중 최신)
+function setDataAsOf() {
+  const el = document.getElementById("dataAsOf");
+  if (!el) return;
+  const dates = [];
+  if (typeof bloombergData !== "undefined" && bloombergData.asOf) dates.push(bloombergData.asOf);
+  if (typeof rateData !== "undefined" && rateData.dates && rateData.dates.length) {
+    dates.push(rateData.dates[rateData.dates.length - 1]);
+  }
+  const latest = dates.filter(Boolean).sort().pop();
+  if (latest) el.textContent = `🕒 데이터 최신 기준일: ${latest}`;
+}
+
 function init() {
+  safeRun("데이터 기준일", setDataAsOf);
   safeRun("테마 토글", setupThemeToggle);
   safeRun("카테고리 필터", renderCategoryFilter);
   safeRun("탭 전환 설정", setupViewTabs);
