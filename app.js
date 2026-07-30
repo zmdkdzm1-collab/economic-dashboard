@@ -2117,6 +2117,17 @@ function getWeekStartFriday(date) {
   return d;
 }
 
+// 주간 캘린더 기준 날짜: 실제 오늘이 아니라 '데이터 최신 기준일'로 앵커.
+// (31일에 갱신해도 종가는 30일자이므로 이번주가 24~30일로 잡히게)
+// 기준일이 금요일이면(새 주 시작·당일 종가는 전일치) 직전 목요일로 롤백.
+function homeWeekAnchorDate() {
+  const ymd = latestDataYmd();
+  const d = ymd ? new Date(`${ymd}T00:00:00`) : new Date();
+  if (d.getDay() === 5) d.setDate(d.getDate() - 1);
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
 // 실제 발표치가 컨센서스(없으면 이전치) 대비 상회/하회/부합인지 판정
 function evSurprise(actual, consensus, previous) {
   const a = parseNumeric(actual);
@@ -2174,7 +2185,7 @@ function formatEventValues(ind, ev) {
 
 function renderHomeWeekList() {
   const today = new Date();
-  const base = getWeekStartFriday(today);
+  const base = getWeekStartFriday(homeWeekAnchorDate());
   const weekStart = new Date(base);
   weekStart.setDate(weekStart.getDate() + state.homeWeekOffset * 7);
 
@@ -2243,7 +2254,7 @@ function passesHomeWeekFilter(ev, ymd) {
 // (외부 라이브러리 없이 브라우저 인쇄 → 'PDF로 저장' 사용)
 // ----------------------------------------------------------------------------
 function weekDaysForOffset(offset) {
-  const base = getWeekStartFriday(new Date());
+  const base = getWeekStartFriday(homeWeekAnchorDate());
   base.setDate(base.getDate() + offset * 7);
   const days = [];
   for (let i = 0; i < 7; i++) {
@@ -2791,15 +2802,20 @@ function setupAiTab() {
 }
 
 // 헤더에 데이터 최신 기준일 표시(블룸버그 asOf / rate-data 마지막 영업일 중 최신)
-function setDataAsOf() {
-  const el = document.getElementById("dataAsOf");
-  if (!el) return;
+// 데이터(블룸버그 asOf / rate-data 마지막 영업일) 최신 기준일 문자열(YYYY-MM-DD)
+function latestDataYmd() {
   const dates = [];
   if (typeof bloombergData !== "undefined" && bloombergData.asOf) dates.push(bloombergData.asOf);
   if (typeof rateData !== "undefined" && rateData.dates && rateData.dates.length) {
     dates.push(rateData.dates[rateData.dates.length - 1]);
   }
-  const latest = dates.filter(Boolean).sort().pop();
+  return dates.filter(Boolean).sort().pop() || null;
+}
+
+function setDataAsOf() {
+  const el = document.getElementById("dataAsOf");
+  if (!el) return;
+  const latest = latestDataYmd();
   if (latest) el.textContent = `🕒 데이터 최신 기준일: ${latest}`;
 }
 
