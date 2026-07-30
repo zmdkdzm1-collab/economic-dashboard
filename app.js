@@ -2265,31 +2265,38 @@ function printEventRowHtml(ev) {
   const s = evSurprise(vals.actual, vals.consensus, vals.previous);
   const arrow = s.dir === "up" ? "▲" : s.dir === "down" ? "▼" : s.dir === "flat" ? "＝" : "";
   const sCls = s.dir ? ` s-${s.dir}` : "";
-  return `<div class="pc-ev imp-${imp}">
-    <span class="pc-time">${ev.timeKST || ""}</span>
-    <span class="pc-name">${flagIcon(country)} ${name}</span>
-    <span class="pc-val${sCls}">${vals.actual}${arrow}<span class="pc-cons">(${vals.consensus})</span></span>
-  </div>`;
+  const benchAbbr = s.benchName === "컨센" ? "컨" : s.benchName === "이전" ? "이" : "";
+  return `<tr class="pc-ev imp-${imp}">
+    <td class="pc-time">${ev.timeKST || ""}</td>
+    <td class="pc-name">${flagIcon(country)} ${name}</td>
+    <td class="pc-num pc-act${sCls}">${vals.actual}</td>
+    <td class="pc-num pc-cons">${vals.consensus}</td>
+    <td class="pc-num pc-prev">${vals.previous}</td>
+    <td class="pc-cmp${sCls}">${s.dir ? benchAbbr + arrow : ""}</td>
+  </tr>`;
 }
 
 function printWeekColumnHtml(offset, label) {
   const days = weekDaysForOffset(offset);
   const todayYmd = formatYmd(new Date());
   const range = `${formatYmd(days[0])} ~ ${formatYmd(days[6])}`;
-  const daysHtml = days
-    .map((day) => {
-      const ymd = formatYmd(day);
-      const evs = calendarEvents.filter((ev) => passesHomeWeekFilter(ev, ymd));
-      if (!evs.length) return "";
-      return `<div class="pc-day${ymd === todayYmd ? " pc-today" : ""}">
-        <div class="pc-day-h">${WEEKDAY_LABELS[day.getDay()]} · ${ymd.slice(5)}${ymd === todayYmd ? " (오늘)" : ""}</div>
-        ${evs.map(printEventRowHtml).join("")}
-      </div>`;
-    })
-    .join("");
+  const rows = [];
+  days.forEach((day) => {
+    const ymd = formatYmd(day);
+    const evs = calendarEvents.filter((ev) => passesHomeWeekFilter(ev, ymd));
+    if (!evs.length) return;
+    rows.push(
+      `<tr class="pc-day-row${ymd === todayYmd ? " pc-today" : ""}"><td colspan="6">${WEEKDAY_LABELS[day.getDay()]} · ${ymd.slice(5)}${ymd === todayYmd ? " (오늘)" : ""}</td></tr>`
+    );
+    evs.forEach((ev) => rows.push(printEventRowHtml(ev)));
+  });
   return `<div class="pc-col">
     <div class="pc-col-head">${label} · ${range}</div>
-    ${daysHtml || `<div class="pc-empty">등록된 일정 없음</div>`}
+    <table class="pc-table">
+      <colgroup><col class="c-time"><col class="c-name"><col class="c-num"><col class="c-num"><col class="c-num"><col class="c-cmp"></colgroup>
+      <thead><tr><th>시간</th><th>지표</th><th>실제</th><th>컨센</th><th>이전</th><th>대비</th></tr></thead>
+      <tbody>${rows.join("") || `<tr><td colspan="6" class="pc-empty">등록된 일정 없음</td></tr>`}</tbody>
+    </table>
   </div>`;
 }
 
@@ -2301,7 +2308,7 @@ function exportWeekPdf() {
     document.body.appendChild(el);
   }
   el.innerHTML = `
-    <div class="pc-title">주간 경제지표·이벤트 캘린더 <span class="pc-sub">(한국·미국 상·중 / 그 외 금리·CPI·GDP · 값=실제(컨센))</span></div>
+    <div class="pc-title">주간 경제지표·이벤트 캘린더 <span class="pc-sub">(한국·미국 상·중 / 그 외 금리·CPI·GDP · 대비: 컨(컨센)/이(이전) 대비 ▲상회 ▼하회 ＝부합)</span></div>
     <div class="pc-grid">
       ${printWeekColumnHtml(-1, "지난주")}
       ${printWeekColumnHtml(0, "이번주")}
