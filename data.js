@@ -1321,8 +1321,8 @@ const indicators = [
       "미국의 기준금리를 결정하는 가장 중요한 통화정책 회의입니다. 금리 결정 자체뿐 아니라 향후 정책 방향을 암시하는 성명서 문구, 점도표(dot plot), 파월 의장의 기자회견 발언까지 전 세계 금융시장이 실시간으로 주목합니다.",
     hasConsensus: true,
     marketOutlook:
-      "2026년 1·3·4·6월 네 차례 연속 3.50~3.75%로 동결했습니다. 4월 회의는 8-4 표결로 위원 간 이견이 두드러졌고(2명은 인하를 주장), 6월은 만장일치로 동결했습니다. 인플레이션이 상반기 중 재차 상승(3~5월 3%대 중후반)하면서 추가 인하 시점에 대한 위원회 내 견해가 엇갈리는 상태이며, 시장은 향후 지표에 따라 유동적으로 판단할 것으로 보고 있습니다.",
-    nextConsensus: "3.50~3.75% 동결 전망",
+      "2026년 1·3·4·6·7월 다섯 차례 연속 3.50~3.75%로 동결했습니다(7월 29일 회의 동결 결정). 4월 회의는 8-4 표결로 위원 간 이견이 두드러졌고(2명은 인하를 주장), 6월은 만장일치로 동결했습니다. 다만 상반기 인플레이션이 3%대 중후반으로 재상승하면서, 다음 회의(9월 16일)를 앞두고 금리선물 시장은 오히려 25bp '인상' 가능성을 우위(약 57%)로 반영하기 시작했습니다. 향후 고용·물가 지표에 따라 방향이 갈릴 전망입니다.",
+    nextConsensus: "9월 회의 인상/동결 팽팽 (선물시장 인상 57%)",
     outlookSources: [
       { title: "Fed Meeting Tracker 2026 (Forbes)", url: "https://www.forbes.com/sites/investor-hub/article/fed-meeting-tracker-interest-rate-strategy/" },
       { title: "Fed Rate Forecast 2026 (PrimeRates)", url: "https://primerates.com/primerate/fed-rate-forecast-2026/" },
@@ -1352,11 +1352,11 @@ const indicators = [
       url: "https://fredblog.stlouisfed.org/2026/06/fomc-summary-of-economic-projections-june-2026/",
     },
     analystViews: [
-      { firm: "Bank of America", stance: "hawkish", view: "'긴축 지속'으로 전환 — 9월·10월·12월 세 차례 0.25%p 인상을 전망." },
-      { firm: "JPMorgan (Michael Feroli)", stance: "hawkish", view: "2026년 내내 동결, 다음 행보는 2027년 3분기 인상이 될 것으로 전망 (스트리트에서 가장 매파적)." },
-      { firm: "Morgan Stanley", stance: "hawkish", view: "연말까지 완전 동결 유지를 전망하는 대표적 소수 의견." },
-      { firm: "주요 기관 컨센서스(6개 중 4개)", stance: "neutral", view: "연내 0.25%p 1회 인하가 유력하며, 9월 또는 10월 회의가 유력 시점이라는 데 의견이 모임." },
-      { firm: "Goldman Sachs", stance: "dovish", view: "6월·9월 두 차례 0.25%p 인하를 전망(다만 실제 6월 회의는 동결로 결정됨)." },
+      { firm: "Bank of America", stance: "hawkish", view: "'긴축 지속'으로 전환 — 9월·10월·12월 세 차례 0.25%p 인상을 전망.", url: "https://institute.bankofamerica.com/economic-insights.html" },
+      { firm: "JPMorgan (Michael Feroli)", stance: "hawkish", view: "2026년 내내 동결, 다음 행보는 2027년 3분기 인상이 될 것으로 전망 (스트리트에서 가장 매파적).", url: "https://www.jpmorgan.com/insights/global-research/economy" },
+      { firm: "Morgan Stanley", stance: "hawkish", view: "연말까지 완전 동결 유지를 전망하는 대표적 소수 의견.", url: "https://www.morganstanley.com/ideas" },
+      { firm: "주요 기관 컨센서스(6개 중 4개)", stance: "neutral", view: "연내 0.25%p 1회 인하가 유력하며, 9월 또는 10월 회의가 유력 시점이라는 데 의견이 모임.", url: "https://primerates.com/primerate/fed-rate-forecast-2026/" },
+      { firm: "Goldman Sachs", stance: "dovish", view: "6월·9월 두 차례 0.25%p 인하를 전망(다만 실제 6월 회의는 동결로 결정됨).", url: "https://www.goldmansachs.com/insights/articles/the-outlook-for-fed-rate-cuts-in-2026" },
     ],
     officialStatements: [
       { date: "2026-07-13", speaker: "월러(Christopher Waller) 이사", summary: "인플레이션에 있어 '지난 전쟁과 싸우지 말아야' 한다면서도, 추가 금리 인상 가능성을 배제하지 않는다고 언급 (CNBC 인터뷰)." },
@@ -1366,6 +1366,7 @@ const indicators = [
     ],
     // 연방준비제도 공식 사이트(federalreserve.gov)에서 확인한 실제 2026년 회의·결정 내역
     history: [
+      { date: "2026-07-29", consensus: "3.50~3.75% 동결", actual: "3.50~3.75% 동결", previous: "3.50~3.75%", note: "5회 연속 동결. 시장은 다음(9월) 회의 인상 가능성에 무게" },
       { date: "2026-06-17", consensus: "3.50~3.75% 동결", actual: "3.50~3.75% 동결", previous: "3.50~3.75%", note: "만장일치 동결" },
       { date: "2026-04-29", consensus: "3.50~3.75% 동결", actual: "3.50~3.75% 동결", previous: "3.50~3.75%", note: "8-4 표결로 위원간 이견 컸음" },
       { date: "2026-03-18", consensus: "3.50~3.75% 동결", actual: "3.50~3.75% 동결", previous: "3.50~3.75%" },

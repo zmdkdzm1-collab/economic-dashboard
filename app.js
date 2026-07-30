@@ -1013,7 +1013,7 @@ function renderAnalystViews(views) {
       (v) => `
       <div class="analyst-view-row">
         <span class="stance-badge stance-${v.stance}">${STANCE_LABEL[v.stance] || v.stance}</span>
-        <strong>${v.firm}</strong>
+        <strong>${v.url ? `<a href="${v.url}" target="_blank" rel="noopener noreferrer">${v.firm} ↗</a>` : v.firm}</strong>
         <p>${v.view}</p>
       </div>`
     )
