@@ -1285,6 +1285,12 @@ main {
   flex: 1 1 160px;
   min-width: 140px;
 }
+.home-week-event .ev-has-chart {
+  font-size: 0.72em;
+  opacity: 0.55;
+  margin-left: 4px;
+  vertical-align: middle;
+}
 .home-week-event .event-values {
   display: flex;
   gap: 20px;

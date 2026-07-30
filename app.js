@@ -2133,18 +2133,19 @@ function evSurprise(actual, consensus, previous) {
   return { dir, benchName };
 }
 
-// 홈 주간 캘린더 이벤트 한 개의 HTML (raw/지표 공통)
-function weekEventHtml(dataAttr, importance, timeKST, country, name, a, c, p) {
+// 홈 주간 캘린더 이벤트 한 개의 HTML (raw/지표 공통). hasChart=지표 사전에서 과거 추이 확인 가능
+function weekEventHtml(dataAttr, importance, timeKST, country, name, a, c, p, hasChart) {
   const s = evSurprise(a, c, p);
   const arrow = s.dir === "up" ? "▲" : s.dir === "down" ? "▼" : s.dir === "flat" ? "＝" : "";
   const surpCls = s.dir ? ` surprise-${s.dir}` : "";
   const surpWord = s.dir === "up" ? "상회" : s.dir === "down" ? "하회" : s.dir === "flat" ? "부합" : "";
   const tip = s.dir ? `${s.benchName} 대비 ${surpWord}` : a;
   const badge = s.dir ? `<span class="ev-surprise${surpCls}" title="${tip}">${s.benchName}${surpWord} ${arrow}</span>` : "";
+  const chartMark = hasChart ? `<span class="ev-has-chart" title="클릭하면 지표 사전에서 과거 추이를 볼 수 있어요">📈</span>` : "";
   return `
     <button class="home-week-event importance-${importance}" ${dataAttr}>
       <span class="event-time">${timeKST}</span>
-      <span class="event-name">${flagIcon(country)} ${name}</span>
+      <span class="event-name">${flagIcon(country)} ${name}${chartMark}</span>
       <span class="event-values">
         <span class="ev-badge-slot">${badge}</span>
         <span class="ev-item ev-actual${surpCls}" title="${tip}"><span class="ev-label">실제</span>${a}</span>
@@ -2190,11 +2191,18 @@ function renderHomeWeekList() {
   const html = days
     .map((day) => {
       const ymd = formatYmd(day);
-      // 홈 주간 캘린더는 중요도 '상'만 표시 (목록이 너무 길어지는 것 방지)
+      // 필터: 한국·미국은 중요도 상·중(미국은 연설 제외), 그 외 국가는 상·중 중에서도
+      //       금리결정·CPI·GDP만 표시.
       const dayEvents = calendarEvents.filter((ev) => {
         if (ev.date !== ymd) return false;
-        const imp = ev.raw ? ev.importance : indicatorById.get(ev.indicatorId)?.importance;
-        return imp === "상";
+        const ind = ev.raw ? null : indicatorById.get(ev.indicatorId);
+        const country = ev.raw ? ev.country : ind?.country;
+        const imp = ev.raw ? ev.importance : ind?.importance;
+        const name = (ev.raw ? ev.name : ind?.name) || "";
+        if (imp !== "상" && imp !== "중") return false;
+        if (country === "한국") return true;
+        if (country === "미국") return !/연설/.test(name);
+        return /금리\s*결정|LPR|대출우대금리|CPI|소비자물가|GDP/.test(name);
       });
       if (dayEvents.length === 0) return "";
       anyEvent = true;
@@ -2202,13 +2210,14 @@ function renderHomeWeekList() {
         .map((ev) => {
           if (ev.raw) {
             return weekEventHtml(`data-raw="${ev.id}"`, ev.importance, ev.timeKST, ev.country, ev.name,
-              ev.actual ?? "-", ev.consensus ?? "-", ev.previous ?? "-");
+              ev.actual ?? "-", ev.consensus ?? "-", ev.previous ?? "-", false);
           }
           const ind = indicatorById.get(ev.indicatorId);
           if (!ind) return "";
           const vals = formatEventValues(ind, ev);
+          const hasChart = getRealSeriesForIndicator(ind).length >= 2;
           return weekEventHtml(`data-id="${ind.id}"`, ind.importance, ev.timeKST, ind.country, ind.name,
-            vals.actual, vals.consensus, vals.previous);
+            vals.actual, vals.consensus, vals.previous, hasChart);
         })
         .join("");
       return `
