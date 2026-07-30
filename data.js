@@ -1330,11 +1330,11 @@ const indicators = [
     ],
     // <<FEDWATCH_AUTO_START>> 이 블록은 .github/workflows/update-fedwatch.yml(매일)이 CME API로 자동 갱신합니다. 수동 편집 시 주석 마커를 지우지 마세요.
     cmeProbability: {
-      meetingDate: "2026-07-29",
-      asOf: "2026-07-26 06:00:34 (CT)",
+      meetingDate: "2026-09-16",
+      asOf: "2026-07-29 07:31:41 (CT)",
       outcomes: [
-        { label: "3.50~3.75% 동결", pct: 63.7 },
-        { label: "3.75~4.00%로 25bp 인상", pct: 36.3 },
+        { label: "3.50~3.75% 동결", pct: 42.6 },
+        { label: "3.75~4.00%로 25bp 인상", pct: 57.4 },
         { label: "인하", pct: 0 },
       ],
       source: { title: "CME FedWatch", url: "https://www.cmegroup.com/markets/interest-rates/cme-fedwatch-tool.html" },
