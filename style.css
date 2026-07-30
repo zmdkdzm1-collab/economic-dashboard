@@ -1299,6 +1299,12 @@ main {
 .home-week-event .ev-item.ev-actual.surprise-up,
 .home-week-event .ev-item.ev-actual.surprise-down,
 .home-week-event .ev-item.ev-actual.surprise-flat { font-weight: 700; }
+.home-week-event .ev-badge-slot {
+  width: 76px;
+  flex: none;
+  display: inline-flex;
+  justify-content: flex-end;
+}
 .home-week-event .ev-surprise {
   font-size: 0.68rem;
   font-weight: 700;
