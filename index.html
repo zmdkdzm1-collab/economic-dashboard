@@ -63,12 +63,18 @@
         <!-- app.js가 선택된 카테고리의 지표 카드를 여기 렌더링 -->
       </div>
 
-      <h3 class="home-section-title">주간 경제지표·이벤트 캘린더</h3>
+      <h3 class="home-section-title">주간 경제지표·이벤트 캘린더 <span class="home-section-hint">매주 금요일~목요일 · 중요도 상만 표시</span></h3>
       <div class="home-week-nav">
         <button class="home-week-btn" data-offset="-1">◀ 지난주</button>
         <span id="homeWeekLabel" class="week-range-label"></span>
         <button class="home-week-btn active" data-offset="0">이번주</button>
         <button class="home-week-btn" data-offset="1">다음주 ▶</button>
+      </div>
+      <div class="home-week-legend">
+        실제치 vs 컨센(없으면 이전):
+        <span class="lg-up"><b>▲ 상회</b></span>
+        <span class="lg-down"><b>▼ 하회</b></span>
+        <span class="lg-flat"><b>＝ 부합</b></span>
       </div>
       <div id="homeWeekList" class="home-week-list"></div>
 
