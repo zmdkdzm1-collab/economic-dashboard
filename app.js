@@ -2117,14 +2117,13 @@ function getWeekStartFriday(date) {
   return d;
 }
 
-// 주간 캘린더 기준 날짜: 실제 오늘이 아니라 '데이터 최신 기준일'로 앵커.
-// (31일에 갱신해도 종가는 30일자이므로 이번주가 24~30일로 잡히게)
-// 기준일이 금요일이면(새 주 시작·당일 종가는 전일치) 직전 목요일로 롤백.
+// 주간 캘린더 기준 날짜: 실제 오늘 기준(방문 시점의 현재 주).
+// 단, 갱신하는 날인 금요일(새 주 시작·당일 종가는 전일치)이면 직전 목요일로 롤백해
+// 방금 끝난 주(금~목)를 '이번주'로 보여준다. 그 외 요일은 오늘이 속한 주를 그대로 사용.
 function homeWeekAnchorDate() {
-  const ymd = latestDataYmd();
-  const d = ymd ? new Date(`${ymd}T00:00:00`) : new Date();
-  if (d.getDay() === 5) d.setDate(d.getDate() - 1);
+  const d = new Date();
   d.setHours(0, 0, 0, 0);
+  if (d.getDay() === 5) d.setDate(d.getDate() - 1);
   return d;
 }
 
