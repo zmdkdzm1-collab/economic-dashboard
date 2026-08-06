@@ -1322,7 +1322,7 @@ const indicators = [
     hasConsensus: true,
     marketOutlook:
       "2026년 1·3·4·6·7월 다섯 차례 연속 3.50~3.75%로 동결했습니다. 다만 7월 29일 회의는 '매파적 동결'로, 해맥·카시카리·로건 3인이 25bp 인상을 주장하며 반대표를 던졌습니다(세 위원이 같은 방향으로 반대한 것은 2016년 9월 이후 처음). 상반기 인플레이션이 3%대 중후반으로 재상승하고 중동 리스크가 겹치면서, 다음 회의(9월)를 앞두고 금리선물 시장은 오히려 25bp '인상' 가능성을 우위(약 57%)로 반영하고 있습니다. 9월 인상 여부는 향후 두 차례 CPI와 중동 정세에 좌우될 전망입니다.",
-    nextConsensus: "9월 회의 인상/동결 팽팽 (선물시장 인상 57%)",
+    nextConsensus: "9월 회의 인상/동결 팽팽 (선물시장 인상 52.9%)",
     outlookSources: [
       { title: "CNBC: Divided Fed holds rates steady (2026-07-29)", url: "https://www.cnbc.com/2026/07/29/fed-rate-decision-july-2026.html" },
       { title: "U.S. News: Fed Holds Rates Steady, but 3 Members Favored a Hike (2026-07-29)", url: "https://www.usnews.com/news/national-news/articles/2026-07-29/fed-holds-rates-steady-but-3-members-favored-a-rate-hike" },
@@ -1331,10 +1331,10 @@ const indicators = [
     // <<FEDWATCH_AUTO_START>> 이 블록은 .github/workflows/update-fedwatch.yml(매일)이 CME API로 자동 갱신합니다. 수동 편집 시 주석 마커를 지우지 마세요.
     cmeProbability: {
       meetingDate: "2026-09-16",
-      asOf: "2026-08-03 01:44:27 (CT)",
+      asOf: "2026-08-05 07:59:07 (CT)",
       outcomes: [
-        { label: "3.50~3.75% 동결", pct: 35.3 },
-        { label: "3.75~4.00%로 25bp 인상", pct: 64.7 },
+        { label: "3.50~3.75% 동결", pct: 47.1 },
+        { label: "3.75~4.00%로 25bp 인상", pct: 52.9 },
         { label: "인하", pct: 0 },
       ],
       source: { title: "CME FedWatch", url: "https://www.cmegroup.com/markets/interest-rates/cme-fedwatch-tool.html" },
