@@ -101,6 +101,129 @@ function createBbgIndicators() {
 createBbgIndicators();
 enrichIndicatorsFromBloomberg();
 
+// ----------------------------------------------------------------------------
+// 캘린더 raw 이벤트 ↔ 지표 사전 자동 연동
+// 인베스팅닷컴류 캘린더의 raw 이벤트 이름은 지표 사전 이름과 다르게 들어온다
+// (예: 캘린더 "JOLTs 구인 건수" ↔ 사전 "미국 JOLTS 구인건수"). 아래 표로 같은
+// 개념을 자동 매칭해 (1) 캘린더에서 클릭하면 사전 상세가 열리고 📈 추이가 보이며
+// (2) 같은 날 같은 지표가 두 번(연동 이벤트 + raw) 뜨지 않도록 중복을 제거한다.
+// update-calendar.py 의 CONCEPT(사전 기본 46종)가 못 잡는 블룸버그 파생 지표·
+// 일부 기본 지표를 여기서 보완한다. c=국가, inc=이름에 하나라도 있으면 후보,
+// exc=하나라도 있으면 제외(대표 발표행 하나만 매칭되도록 설계).
+// ----------------------------------------------------------------------------
+const RAW_MATCH = {
+  // 미국 — 블룸버그 파생 지표
+  us_jolts:        { c: "미국", inc: ["JOLTs 구인", "JOLT 구인"], exc: ["퇴직"] },
+  us_ppi:          { c: "미국", inc: ["PPI YoY"], exc: ["근원", "산출", "투입", "식품"] },
+  us_adp:          { c: "미국", inc: ["ADP 고용 증감"], exc: ["4주"] },
+  us_industrial:   { c: "미국", inc: ["산업생산 MoM"], exc: [] },
+  us_capacity:     { c: "미국", inc: ["설비가동률"], exc: [] },
+  us_gdp:          { c: "미국", inc: ["GDP성장률(속보) QoQ"], exc: [] },
+  // 미국 — 기본 지표(파이썬 중복제거 누락분 대비 안전망)
+  us_ism_mfg:      { c: "미국", inc: ["ISM 제조업 PMI"], exc: ["가격", "고용", "신규", "주문"] },
+  us_ism_svc:      { c: "미국", inc: ["ISM 서비스업 PMI"], exc: ["가격", "고용", "신규", "주문", "활동"] },
+  // 한국
+  kr_exports:      { c: "한국", inc: ["수출 YoY"], exc: ["가격"] },
+  kr_imports:      { c: "한국", inc: ["수입 YoY"], exc: ["가격"] },
+  kr_unemployment: { c: "한국", inc: ["실업률"], exc: [] },
+  kr_current_account: { c: "한국", inc: ["경상수지"], exc: [] },
+  kr_ccsi:         { c: "한국", inc: ["소비자 동향지수", "소비자심리"], exc: [] },
+  kr_ppi:          { c: "한국", inc: ["PPI YoY"], exc: [] },
+  kr_bsi:          { c: "한국", inc: ["기업 신뢰지수"], exc: [] },
+  kr_gdp:          { c: "한국", inc: ["GDP 성장률(속보) QoQ"], exc: ["YoY"] },
+  // 유럽
+  eu_industrial:   { c: "유럽", inc: ["산업생산 MoM"], exc: [] },
+  eu_gdp:          { c: "유럽", inc: ["GDP 성장률(속보) QoQ"], exc: ["YoY"] },
+  eu_unemployment: { c: "유럽", inc: ["실업률"], exc: [] },
+  de_zew:          { c: "유럽", inc: ["ZEW 경제심리지수", "ZEW 경기"], exc: [] },
+  // 중국
+  cn_cpi:          { c: "중국", inc: ["CPI상승률 YoY"], exc: ["MoM"] },
+  cn_ppi:          { c: "중국", inc: ["PPI YoY"], exc: [] },
+  cn_gdp:          { c: "중국", inc: ["GDP 성장률 YoY"], exc: ["QoQ"] },
+  cn_caixin_pmi:   { c: "중국", inc: ["RatingDog 제조업 PMI", "차이신 제조업"], exc: ["서비스", "종합"] },
+  // 일본
+  jp_gdp:          { c: "일본", inc: ["GDP 성장률(잠정) QoQ"], exc: ["연율", "가격", "민간", "외부", "자본"] },
+  jp_tankan:       { c: "일본", inc: ["단칸 대기업 제조업지수"], exc: [] },
+  jp_wages:        { c: "일본", inc: ["평균 현금 소득 YoY", "현금급여"], exc: [] },
+  // 호주
+  au_trade:        { c: "호주", inc: ["무역수지"], exc: [] },
+};
+
+// raw 이벤트 → 매칭되는 사전 지표 id (없으면 null). ev._matchId 에 메모이즈.
+function matchRawIndicator(ev) {
+  const name = ev.name || "";
+  for (const id in RAW_MATCH) {
+    const m = RAW_MATCH[id];
+    if (m.c !== ev.country) continue;
+    if (!m.inc.some((k) => name.includes(k))) continue;
+    if (m.exc.some((k) => name.includes(k))) continue;
+    if (!indicatorById.has(id)) continue; // 사전에 아직 생성 안 된 지표는 매칭 안 함
+    return id;
+  }
+  return null;
+}
+function rawMatchId(ev) {
+  if (!ev || !ev.raw) return null;
+  if (ev._matchId !== undefined) return ev._matchId;
+  return (ev._matchId = matchRawIndicator(ev));
+}
+
+// 하루치 이벤트에서 같은 지표를 가리키는 중복(연동 이벤트 + raw, raw + raw)을 제거.
+// 실제치가 있는 쪽 > 사전 연동(native) 쪽을 우선 보존한다. 원래 순서는 유지.
+function eventHasActual(ev) {
+  if (ev.raw) return !!(ev.actual && ev.actual !== "-");
+  const ind = indicatorById.get(ev.indicatorId);
+  return ind ? !!(ind.history || []).find((h) => h.date === ev.date && h.actual != null) : false;
+}
+function eventKey(ev) {
+  if (!ev.raw) return "ind:" + ev.indicatorId;
+  const mid = rawMatchId(ev);
+  return mid ? "ind:" + mid : "raw:" + ev.id;
+}
+function betterEvent(a, b) {
+  const aa = eventHasActual(a) ? 1 : 0;
+  const ba = eventHasActual(b) ? 1 : 0;
+  if (aa !== ba) return aa > ba;
+  return (a.raw ? 0 : 1) > (b.raw ? 0 : 1); // 동률이면 사전 연동 우선
+}
+function dedupDayEvents(list) {
+  const best = new Map();
+  for (const ev of list) {
+    const k = eventKey(ev);
+    const cur = best.get(k);
+    if (!cur || betterEvent(ev, cur)) best.set(k, ev);
+  }
+  const keep = new Set(best.values());
+  return list.filter((ev) => keep.has(ev));
+}
+
+// 이벤트(raw/native 공통) 표시용 필드로 정규화. raw 가 사전 지표와 매칭되면
+// 사전 이름·클릭연결(clickId)·📈 여부를 부여하되, 값은 raw 의 실제/컨센/이전을 유지.
+function resolveEventDisplay(ev) {
+  if (ev.raw) {
+    const ind = indicatorById.get(rawMatchId(ev));
+    if (ind) {
+      return {
+        clickId: ind.id, country: ind.country, name: ind.name, importance: ev.importance,
+        timeKST: ev.timeKST, actual: ev.actual ?? "-", consensus: ev.consensus ?? "-",
+        previous: ev.previous ?? "-", hasChart: getRealSeriesForIndicator(ind).length >= 2,
+      };
+    }
+    return {
+      rawId: ev.id, country: ev.country, name: ev.name, importance: ev.importance,
+      timeKST: ev.timeKST, actual: ev.actual ?? "-", consensus: ev.consensus ?? "-",
+      previous: ev.previous ?? "-", hasChart: false,
+    };
+  }
+  const ind = indicatorById.get(ev.indicatorId);
+  const vals = formatEventValues(ind, ev);
+  return {
+    clickId: ind.id, country: ind.country, name: ind.name, importance: ind.importance,
+    timeKST: ev.timeKST, actual: vals.actual, consensus: vals.consensus, previous: vals.previous,
+    hasChart: getRealSeriesForIndicator(ind).length >= 2,
+  };
+}
+
 const state = {
   view: "home", // "home" | "dictionary" | "calendar" | "monetary"
   category: "전체",
@@ -456,25 +579,20 @@ function renderCalendar() {
     day.setDate(day.getDate() + i);
     const ymd = formatYmd(day);
     const isOutside = day.getMonth() !== targetMonth;
-    const dayEvents = filteredEvents.filter((ev) => ev.date === ymd);
+    const dayEvents = dedupDayEvents(filteredEvents.filter((ev) => ev.date === ymd));
 
     const eventsHtml = dayEvents
       .map((ev) => {
+        if (!ev.raw && !indicatorById.get(ev.indicatorId)) return "";
         const status = ev.date < todayYmd ? "past" : ev.date === todayYmd ? "today" : "upcoming";
         const statusLabel = status === "past" ? "완료" : status === "today" ? "오늘" : "예정";
-        if (ev.raw) {
-          return `
-          <button class="calendar-event importance-${ev.importance} status-${status}" data-raw="${ev.id}" title="${ev.country} · ${ev.name}">
-            <span class="event-status-badge status-${status}">${statusLabel}</span><span class="event-time">${ev.timeKST}</span>
-            <span class="event-country">${flagIcon(ev.country)}${ev.country}</span> ${ev.name}
-          </button>`;
-        }
-        const ind = indicatorById.get(ev.indicatorId);
-        if (!ind) return "";
+        const d = resolveEventDisplay(ev);
+        const dataAttr = d.clickId ? `data-id="${d.clickId}"` : `data-raw="${d.rawId}"`;
+        const chartMark = d.hasChart ? ` <span class="ev-has-chart" title="클릭하면 지표 사전에서 과거 추이를 볼 수 있어요">📈</span>` : "";
         return `
-          <button class="calendar-event importance-${ind.importance} status-${status}" data-id="${ind.id}" title="${ind.country} · ${ind.name}">
-            <span class="event-status-badge status-${status}">${statusLabel}</span><span class="event-time">${ev.timeKST}</span>
-            <span class="event-country">${flagIcon(ind.country)}${ind.country}</span> ${ind.name}
+          <button class="calendar-event importance-${d.importance} status-${status}" ${dataAttr} title="${d.country} · ${d.name}">
+            <span class="event-status-badge status-${status}">${statusLabel}</span><span class="event-time">${d.timeKST}</span>
+            <span class="event-country">${flagIcon(d.country)}${d.country}</span> ${d.name}${chartMark}
           </button>`;
       })
       .join("");
@@ -2201,21 +2319,16 @@ function renderHomeWeekList() {
   const html = days
     .map((day) => {
       const ymd = formatYmd(day);
-      const dayEvents = calendarEvents.filter((ev) => passesHomeWeekFilter(ev, ymd));
+      const dayEvents = dedupDayEvents(calendarEvents.filter((ev) => passesHomeWeekFilter(ev, ymd)));
       if (dayEvents.length === 0) return "";
       anyEvent = true;
       const eventsHtml = dayEvents
         .map((ev) => {
-          if (ev.raw) {
-            return weekEventHtml(`data-raw="${ev.id}"`, ev.importance, ev.timeKST, ev.country, ev.name,
-              ev.actual ?? "-", ev.consensus ?? "-", ev.previous ?? "-", false);
-          }
-          const ind = indicatorById.get(ev.indicatorId);
-          if (!ind) return "";
-          const vals = formatEventValues(ind, ev);
-          const hasChart = getRealSeriesForIndicator(ind).length >= 2;
-          return weekEventHtml(`data-id="${ind.id}"`, ind.importance, ev.timeKST, ind.country, ind.name,
-            vals.actual, vals.consensus, vals.previous, hasChart);
+          if (!ev.raw && !indicatorById.get(ev.indicatorId)) return "";
+          const d = resolveEventDisplay(ev);
+          const dataAttr = d.clickId ? `data-id="${d.clickId}"` : `data-raw="${d.rawId}"`;
+          return weekEventHtml(dataAttr, d.importance, d.timeKST, d.country, d.name,
+            d.actual, d.consensus, d.previous, d.hasChart);
         })
         .join("");
       return `
@@ -2265,23 +2378,17 @@ function weekDaysForOffset(offset) {
 }
 
 function printEventRowHtml(ev) {
-  const ind = ev.raw ? null : indicatorById.get(ev.indicatorId);
-  const country = ev.raw ? ev.country : ind?.country;
-  const name = ev.raw ? ev.name : ind?.name;
-  const imp = ev.raw ? ev.importance : ind?.importance;
-  const vals = ev.raw
-    ? { actual: ev.actual ?? "-", consensus: ev.consensus ?? "-", previous: ev.previous ?? "-" }
-    : formatEventValues(ind, ev);
-  const s = evSurprise(vals.actual, vals.consensus, vals.previous);
+  const d = resolveEventDisplay(ev);
+  const s = evSurprise(d.actual, d.consensus, d.previous);
   const arrow = s.dir === "up" ? "▲" : s.dir === "down" ? "▼" : s.dir === "flat" ? "＝" : "";
   const sCls = s.dir ? ` s-${s.dir}` : "";
   const benchAbbr = s.benchName === "컨센" ? "컨" : s.benchName === "이전" ? "이" : "";
-  return `<tr class="pc-ev imp-${imp}">
-    <td class="pc-time">${ev.timeKST || ""}</td>
-    <td class="pc-name">${flagIcon(country)} ${name}</td>
-    <td class="pc-num pc-act${sCls}">${vals.actual}</td>
-    <td class="pc-num pc-cons">${vals.consensus}</td>
-    <td class="pc-num pc-prev">${vals.previous}</td>
+  return `<tr class="pc-ev imp-${d.importance}">
+    <td class="pc-time">${d.timeKST || ""}</td>
+    <td class="pc-name">${flagIcon(d.country)} ${d.name}</td>
+    <td class="pc-num pc-act${sCls}">${d.actual}</td>
+    <td class="pc-num pc-cons">${d.consensus}</td>
+    <td class="pc-num pc-prev">${d.previous}</td>
     <td class="pc-cmp${sCls}">${s.dir ? benchAbbr + arrow : ""}</td>
   </tr>`;
 }
@@ -2293,7 +2400,7 @@ function printWeekColumnHtml(offset, label) {
   const rows = [];
   days.forEach((day) => {
     const ymd = formatYmd(day);
-    const evs = calendarEvents.filter((ev) => passesHomeWeekFilter(ev, ymd));
+    const evs = dedupDayEvents(calendarEvents.filter((ev) => passesHomeWeekFilter(ev, ymd)));
     if (!evs.length) return;
     rows.push(
       `<tr class="pc-day-row${ymd === todayYmd ? " pc-today" : ""}"><td colspan="6">${WEEKDAY_LABELS[day.getDay()]} · ${ymd.slice(5)}${ymd === todayYmd ? " (오늘)" : ""}</td></tr>`
