@@ -1,0 +1,100 @@
+name: Apply data intake (upload tab)
+
+# 홈페이지 '업데이트' 탭에서 data-intake/incoming/ 에 파일이 커밋되면
+# 기존 파이썬 스크립트로 데이터 파일을 갱신하고 GitHub Pages를 재배포한다.
+on:
+  push:
+    branches: [master]
+    paths:
+      - "data-intake/incoming/**"
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+
+concurrency:
+  group: "pages"
+  cancel-in-progress: false
+
+jobs:
+  apply:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - name: Checkout (latest master)
+        uses: actions/checkout@v4
+        with:
+          ref: master
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install deps
+        run: pip install openpyxl
+
+      - name: Apply uploaded files
+        run: |
+          set -e
+          did=0
+          if [ -f data-intake/incoming/calendar.xlsx ]; then
+            echo "::group::캘린더"
+            cp data-intake/incoming/calendar.xlsx data-imports/calendar.xlsx
+            python3 scripts/update-calendar.py
+            echo "::endgroup::"; did=1
+          fi
+          if [ -f data-intake/incoming/info_daily.xlsx ]; then
+            echo "::group::인포맥스(일별 금리/환율)"
+            cp data-intake/incoming/info_daily.xlsx data-imports/info_daily.xlsx
+            python3 scripts/update-rates.py
+            echo "::endgroup::"; did=1
+          fi
+          if [ -f data-intake/incoming/bloomberg.xlsx ]; then
+            echo "::group::블룸버그 매크로"
+            cp data-intake/incoming/bloomberg.xlsx data-imports/bloomberg.xlsx
+            python3 scripts/update-bloomberg.py
+            echo "::endgroup::"; did=1
+          fi
+          if [ -f data-intake/incoming/cme.json ]; then
+            echo "::group::CME FedWatch"
+            python3 scripts/update-cme.py data-intake/incoming/cme.json
+            echo "::endgroup::"; did=1
+          fi
+          echo "did=$did" >> "$GITHUB_ENV"
+
+      - name: Commit results and clear intake
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git rm -q -f --ignore-unmatch \
+            data-intake/incoming/calendar.xlsx \
+            data-intake/incoming/info_daily.xlsx \
+            data-intake/incoming/bloomberg.xlsx \
+            data-intake/incoming/cme.json
+          git add -A
+          if [[ -n "$(git status --porcelain)" ]]; then
+            git commit -m "chore: 업로드 데이터 반영 (업데이트 탭)"
+            for i in 1 2 3 4 5; do
+              git pull --rebase --autostash origin master && git push && break
+              echo "push race, retry $i"; sleep 3
+            done
+          else
+            echo "반영할 변경 없음"
+          fi
+
+      - name: Setup Pages
+        uses: actions/configure-pages@v5
+
+      - name: Upload artifact
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: "."
+
+      - name: Deploy to GitHub Pages
+        id: deployment
+        uses: actions/deploy-pages@v4

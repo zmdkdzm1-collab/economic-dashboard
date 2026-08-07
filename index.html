@@ -25,6 +25,7 @@
     <button class="view-tab-btn" data-view="calendar">📅 발표 캘린더</button>
     <button class="view-tab-btn" data-view="monetary">🏦 통화정책</button>
     <button class="view-tab-btn" data-view="ai">🤖 AI 분석</button>
+    <button class="view-tab-btn" data-view="update">🔐 업데이트</button>
   </nav>
 
   <div class="category-filter" id="categoryFilter">
@@ -199,6 +200,98 @@
       <p class="ai-disclaimer">
         ⚠️ AI 답변은 참고용이며 오류가 있을 수 있습니다. API 키는 각 AI 제공사와의 통신에만 쓰이며 이 사이트 서버로는 전송되지 않습니다(서버가 없는 정적 페이지). 사용료는 본인 API 키 기준으로 청구됩니다.
       </p>
+    </section>
+
+    <!-- 데이터 업데이트 화면: 비밀번호 → 파일 업로드 → GitHub 자동 반영 -->
+    <section id="view-update" class="view-panel">
+      <h3 class="home-section-title">🔐 데이터 업데이트</h3>
+      <p class="home-section-desc">
+        회의 자료용 대시보드를 담당자가 없어도 갱신할 수 있습니다. 비밀번호를 입력해 잠금을 풀고,
+        평소 쓰던 엑셀 파일을 그대로 올리면 <strong>GitHub이 자동으로 처리·배포</strong>합니다(약 1~2분).
+      </p>
+
+      <!-- 잠금 화면 -->
+      <div id="updateLock" class="update-lock">
+        <div class="update-lock-box">
+          <label for="updatePw">비밀번호</label>
+          <div class="ai-key-row">
+            <input type="password" id="updatePw" placeholder="비밀번호 입력" autocomplete="off" />
+            <button type="button" id="updatePwToggle" class="ai-key-toggle" title="표시/숨김">👁</button>
+          </div>
+          <button id="updateUnlock" class="ai-submit">잠금 해제</button>
+          <span id="updateLockMsg" class="ai-status"></span>
+          <details class="update-setup" id="updateSetup">
+            <summary>⚙️ 최초 설정 (관리자만 · 이 컴퓨터에 한 번만)</summary>
+            <p class="update-setup-desc">
+              이 컴퓨터(브라우저)에서 자동 반영이 되게 하려면 GitHub 쓰기 토큰과 팀 공용 비밀번호를 한 번 저장하세요.
+              토큰은 <strong>소스에 저장되지 않고 이 브라우저에만</strong> 보관됩니다(AI 키와 동일 방식).
+            </p>
+            <label for="updateTokenInput">GitHub 토큰 <span class="ai-hint">Fine-grained · 이 저장소 Contents 읽기/쓰기</span></label>
+            <div class="ai-key-row">
+              <input type="password" id="updateTokenInput" placeholder="github_pat_..." autocomplete="off" />
+              <button type="button" id="updateTokenToggle" class="ai-key-toggle" title="표시/숨김">👁</button>
+            </div>
+            <label for="updateSetPw">팀 공용 비밀번호 (새로 정하기)</label>
+            <input type="password" id="updateSetPw" placeholder="동료와 공유할 비밀번호" autocomplete="off" />
+            <button id="updateSaveSetup" class="ai-submit">설정 저장</button>
+            <span id="updateSetupMsg" class="ai-status"></span>
+          </details>
+        </div>
+      </div>
+
+      <!-- 업로드 화면 (잠금 해제 후) -->
+      <div id="updatePanel" class="update-panel" hidden>
+        <div class="update-topbar">
+          <span id="updateTokenState" class="update-token-state"></span>
+          <button id="updateLockBtn" class="ai-reset">🔒 잠그기</button>
+        </div>
+
+        <div class="update-cards">
+          <div class="update-card" data-kind="calendar">
+            <div class="update-card-head">📅 경제 캘린더 <span class="update-card-file">calendar 엑셀</span></div>
+            <p class="update-card-desc">인베스팅닷컴류 캘린더 엑셀(.xlsx). 8월 등 발표값·일정 갱신.</p>
+            <input type="file" class="update-file" accept=".xlsx" data-kind="calendar" />
+            <button class="update-send ai-submit" data-kind="calendar" disabled>업로드 · 반영</button>
+            <div class="update-log" data-kind="calendar"></div>
+          </div>
+
+          <div class="update-card" data-kind="info_daily">
+            <div class="update-card-head">📈 인포맥스 일별 <span class="update-card-file">info_daily 엑셀</span></div>
+            <p class="update-card-desc">일별 금리·환율 시계열(.xlsx). 최신 영업일 추가 + 블룸버그 교차검증.</p>
+            <input type="file" class="update-file" accept=".xlsx" data-kind="info_daily" />
+            <button class="update-send ai-submit" data-kind="info_daily" disabled>업로드 · 반영</button>
+            <div class="update-log" data-kind="info_daily"></div>
+          </div>
+
+          <div class="update-card" data-kind="bloomberg">
+            <div class="update-card-head">🏦 블룸버그 매크로 <span class="update-card-file">bb_data 엑셀</span></div>
+            <p class="update-card-desc">블룸버그 매크로/시장 데이터(.xlsx). 최신값만 이어붙임(이력 보존).</p>
+            <input type="file" class="update-file" accept=".xlsx" data-kind="bloomberg" />
+            <button class="update-send ai-submit" data-kind="bloomberg" disabled>업로드 · 반영</button>
+            <div class="update-log" data-kind="bloomberg"></div>
+          </div>
+
+          <div class="update-card" data-kind="cme">
+            <div class="update-card-head">🎯 CME FedWatch <span class="update-card-file">숫자 입력</span></div>
+            <p class="update-card-desc">FedWatch 화면의 숫자를 그대로 입력하세요(파일 아님).</p>
+            <div class="update-cme-form">
+              <label>회의일 <input type="date" id="cmeMeetingDate" /></label>
+              <label>기준시각(as of) <input type="text" id="cmeAsOf" placeholder="예: 2026-08-07 07:00:55 (CT)" /></label>
+              <label>동결 % <input type="number" id="cmeHold" step="0.1" min="0" max="100" placeholder="NO CHANGE" /></label>
+              <label>인상 % <input type="number" id="cmeHike" step="0.1" min="0" max="100" placeholder="HIKE" /></label>
+              <label>인하 % <input type="number" id="cmeCut" step="0.1" min="0" max="100" placeholder="EASE" /></label>
+            </div>
+            <button class="update-send ai-submit" data-kind="cme">업로드 · 반영</button>
+            <div class="update-log" data-kind="cme"></div>
+          </div>
+        </div>
+
+        <p class="ai-disclaimer">
+          ⚠️ 올린 파일은 GitHub 저장소의 처리 폴더에 잠시 커밋되었다가 자동으로 지워지며, GitHub Actions가
+          기존 파이썬 스크립트로 검증·반영합니다. 반영 진행 상황은 저장소의 <strong>Actions</strong> 탭에서 볼 수 있고,
+          완료되면 약 1~2분 뒤 사이트에 반영됩니다. (공개 사이트이므로 비밀번호는 보조 잠금이며, 실제 권한은 GitHub 토큰이 가집니다.)
+        </p>
+      </div>
     </section>
   </main>
 

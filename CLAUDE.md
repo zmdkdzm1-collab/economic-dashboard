@@ -3,7 +3,7 @@
 정적(HTML/CSS/JS) 경제지표 대시보드. 서버 없음. GitHub Pages로 배포.
 
 ## 구조
-- `index.html` — 탭: 홈 / 지표 사전 / 발표 캘린더 / 통화정책 / AI 분석
+- `index.html` — 탭: 홈 / 지표 사전 / 발표 캘린더 / 통화정책 / AI 분석 / 업데이트
 - `app.js` — 렌더링·상호작용 전체 로직
 - `data.js` — `indicators`, `policyRates`, `bondYields`, `marketAssets`, `calendarEvents`
   및 자동갱신 참조 블록(`fredReference`/`ecosReference`/`estatReference`)
@@ -19,7 +19,22 @@
 - FRED / ECOS / e-Stat 참조 시계열(비교 도구용). 키는 저장소 Secrets에 있음.
 - FedWatch는 CME 유료 API라 사실상 수동.
 
-## 수동 업데이트 방법
+## 셀프서비스 업데이트 (홈페이지 🔐 업데이트 탭 — 담당자 없이도 갱신)
+- 목적: 회의용 대시보드를 비개발자 동료도 파일 업로드만으로 갱신.
+- 흐름: 비밀번호로 잠금 해제 → 파일 업로드/CME 숫자 입력 → 브라우저가 GitHub
+  Contents API로 `data-intake/incoming/`에 커밋 → `.github/workflows/data-intake.yml`가
+  기존 파이썬 스크립트(update-calendar/rates/bloomberg/cme)를 실행해 데이터 파일을
+  갱신·커밋하고 Pages를 재배포(약 1~2분). 원본 파일은 처리 후 자동 삭제.
+- 받는 4종: `calendar.xlsx`, `info_daily.xlsx`, `bloomberg.xlsx`(파일) + `cme.json`(폼 입력).
+- 인증(중요): GitHub 토큰·비밀번호는 **소스에 저장하지 않고** 사용자 브라우저
+  localStorage에만 보관(AI 키와 동일). 공개 사이트라 비밀번호는 보조 잠금이고 실제
+  쓰기 권한은 토큰이 가짐 → 방문자는 토큰이 없어 아무것도 못 바꿈. 관리자가 회의용
+  PC 브라우저에서 최초 1회 토큰(Fine-grained, 이 저장소 Contents 읽기/쓰기)+공용
+  비밀번호를 저장하면, 이후 동료는 비밀번호만으로 사용.
+- 관련 파일: `scripts/update-cme.py`, `.github/workflows/data-intake.yml`,
+  `data-intake/incoming/`, app.js의 `setupUpdateTab`/`UPDATE_CFG`.
+
+## 수동 업데이트 방법 (담당자 로컬에서 CLI로)
 - **경제 캘린더**: 엑셀을 `data-imports/calendar.xlsx`로 저장 후
   `python3 scripts/update-calendar.py` 실행. (자세한 규칙은 `data-imports/README.md`)
   data.js의 `<<CALENDAR_RAW_START>>`~`<<CALENDAR_RAW_END>>` 사이만 자동으로 다시 씀.
