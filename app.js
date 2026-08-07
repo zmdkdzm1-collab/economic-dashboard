@@ -478,7 +478,8 @@ function renderCategoryFilter() {
 // ----------------------------------------------------------------------------
 // 홈·통화정책·AI 탭에는 카테고리 필터바가 필요 없음 (지표 사전·캘린더에서만 사용)
 function updateCategoryFilterVisibility() {
-  const hidden = state.view === "home" || state.view === "ai" || state.view === "monetary";
+  const hidden =
+    state.view === "home" || state.view === "ai" || state.view === "monetary" || state.view === "update";
   document.getElementById("categoryFilter").style.display = hidden ? "none" : "";
 }
 
@@ -493,8 +494,10 @@ function setupViewTabs() {
       document.getElementById("view-calendar").classList.toggle("active", state.view === "calendar");
       document.getElementById("view-monetary").classList.toggle("active", state.view === "monetary");
       document.getElementById("view-ai").classList.toggle("active", state.view === "ai");
+      document.getElementById("view-update").classList.toggle("active", state.view === "update");
       updateCategoryFilterVisibility();
       if (state.view === "monetary") renderMonetaryView();
+      if (state.view === "update") refreshUpdateTabState();
     });
   });
 }
@@ -2936,6 +2939,247 @@ function init() {
   safeRun("캘린더 내비게이션", setupCalendarNav);
   safeRun("상세 모달", setupModal);
   safeRun("AI 분석 탭", setupAiTab);
+  safeRun("업데이트 탭", setupUpdateTab);
+}
+
+// ----------------------------------------------------------------------------
+// 🔐 업데이트 탭: 비밀번호 잠금 → 파일 업로드 → GitHub 커밋(data-intake/incoming) →
+// GitHub Actions(data-intake.yml)가 파이썬 스크립트로 반영·배포.
+// 토큰/비밀번호는 소스에 저장하지 않고 이 브라우저 localStorage 에만 보관한다.
+// ----------------------------------------------------------------------------
+const UPDATE_CFG = (() => {
+  // GitHub Pages 주소에서 owner/repo 유추(포크·이전 대비). 실패 시 기본값.
+  let owner = "zmdkdzm1-collab";
+  let repo = "economic-dashboard";
+  try {
+    const host = location.hostname; // <owner>.github.io
+    if (host.endsWith(".github.io")) {
+      owner = host.split(".")[0] || owner;
+      const seg = location.pathname.split("/").filter(Boolean); // /<repo>/...
+      if (seg.length) repo = seg[0];
+    }
+  } catch (e) {}
+  return { owner, repo, branch: "master", dir: "data-intake/incoming" };
+})();
+const UPDATE_KEYS = { token: "dashUpdateToken", pwHash: "dashUpdatePwHash" };
+const UPDATE_FILE_NAMES = {
+  calendar: "calendar.xlsx",
+  info_daily: "info_daily.xlsx",
+  bloomberg: "bloomberg.xlsx",
+  cme: "cme.json",
+};
+
+async function sha256Hex(text) {
+  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}
+function updGetToken() {
+  return localStorage.getItem(UPDATE_KEYS.token) || "";
+}
+function updActionsUrl() {
+  return `https://github.com/${UPDATE_CFG.owner}/${UPDATE_CFG.repo}/actions`;
+}
+
+function updSetLog(kind, html, cls) {
+  const el = document.querySelector(`.update-log[data-kind="${kind}"]`);
+  if (el) el.innerHTML = `<span class="${cls || ""}">${html}</span>`;
+}
+
+// 파일 → base64 (data:URL 접두어 제거)
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const r = new FileReader();
+    r.onload = () => resolve(String(r.result).split(",")[1] || "");
+    r.onerror = reject;
+    r.readAsDataURL(file);
+  });
+}
+// 문자열(UTF-8) → base64
+function strToBase64(str) {
+  return btoa(String.fromCharCode(...new TextEncoder().encode(str)));
+}
+
+// data-intake/incoming/<name> 에 커밋(있으면 갱신). 성공 시 커밋 sha 반환.
+async function updCommitFile(name, base64Content, message) {
+  const token = updGetToken();
+  if (!token) throw new Error("이 브라우저에 GitHub 토큰이 없습니다. 관리자 최초 설정이 필요합니다.");
+  const path = `${UPDATE_CFG.dir}/${name}`;
+  const apiBase = `https://api.github.com/repos/${UPDATE_CFG.owner}/${UPDATE_CFG.repo}/contents/${path}`;
+  const headers = {
+    Authorization: `Bearer ${token}`,
+    Accept: "application/vnd.github+json",
+    "X-GitHub-Api-Version": "2022-11-28",
+  };
+  // 기존 파일 sha 확인(있으면 갱신)
+  let sha;
+  const getRes = await fetch(`${apiBase}?ref=${UPDATE_CFG.branch}`, { headers });
+  if (getRes.ok) sha = (await getRes.json()).sha;
+  else if (getRes.status !== 404) {
+    throw new Error(`GitHub 조회 실패(${getRes.status}). 토큰 권한을 확인하세요.`);
+  }
+  const putRes = await fetch(apiBase, {
+    method: "PUT",
+    headers,
+    body: JSON.stringify({ message, content: base64Content, branch: UPDATE_CFG.branch, sha }),
+  });
+  if (!putRes.ok) {
+    let detail = "";
+    try {
+      detail = (await putRes.json()).message || "";
+    } catch (e) {}
+    throw new Error(`업로드 실패(${putRes.status}). ${detail}`);
+  }
+  return (await putRes.json())?.commit?.sha;
+}
+
+async function updSendFile(kind) {
+  const input = document.querySelector(`.update-file[data-kind="${kind}"]`);
+  const file = input && input.files && input.files[0];
+  if (!file) {
+    updSetLog(kind, "먼저 파일을 선택하세요.", "s-down");
+    return;
+  }
+  const btn = document.querySelector(`.update-send[data-kind="${kind}"]`);
+  btn.disabled = true;
+  updSetLog(kind, "⏳ 업로드 중…");
+  try {
+    const b64 = await fileToBase64(file);
+    await updCommitFile(UPDATE_FILE_NAMES[kind], b64, `데이터 업로드: ${kind} (업데이트 탭)`);
+    updSetLog(
+      kind,
+      `✅ 업로드 완료. GitHub이 처리 중입니다(약 1~2분). <a href="${updActionsUrl()}" target="_blank" rel="noopener">진행 상황 보기 ↗</a>`,
+      "s-up"
+    );
+    input.value = "";
+  } catch (e) {
+    updSetLog(kind, "❌ " + (e.message || e), "s-down");
+    btn.disabled = false;
+  }
+}
+
+async function updSendCme() {
+  const meetingDate = document.getElementById("cmeMeetingDate").value.trim();
+  const asOf = document.getElementById("cmeAsOf").value.trim();
+  const hold = parseFloat(document.getElementById("cmeHold").value);
+  const hike = parseFloat(document.getElementById("cmeHike").value);
+  const cut = parseFloat(document.getElementById("cmeCut").value);
+  if (!meetingDate || !asOf || [hold, hike, cut].some((v) => isNaN(v))) {
+    updSetLog("cme", "회의일·기준시각·동결/인상/인하 %를 모두 입력하세요.", "s-down");
+    return;
+  }
+  const btn = document.querySelector(`.update-send[data-kind="cme"]`);
+  btn.disabled = true;
+  updSetLog("cme", "⏳ 업로드 중…");
+  try {
+    const json = JSON.stringify({ meetingDate, asOf, hold, hike, cut }, null, 2);
+    await updCommitFile("cme.json", strToBase64(json), "CME FedWatch 업로드 (업데이트 탭)");
+    updSetLog(
+      "cme",
+      `✅ 업로드 완료. GitHub이 처리 중입니다(약 1~2분). <a href="${updActionsUrl()}" target="_blank" rel="noopener">진행 상황 보기 ↗</a>`,
+      "s-up"
+    );
+  } catch (e) {
+    updSetLog("cme", "❌ " + (e.message || e), "s-down");
+  }
+  btn.disabled = false;
+}
+
+// 잠금/설정 상태에 따라 화면 갱신
+function refreshUpdateTabState() {
+  const hasPw = !!localStorage.getItem(UPDATE_KEYS.pwHash);
+  const setup = document.getElementById("updateSetup");
+  const msg = document.getElementById("updateLockMsg");
+  if (setup) setup.open = !hasPw; // 비밀번호 미설정이면 설정 안내 펼침
+  if (msg) msg.textContent = hasPw ? "" : "이 브라우저에 설정이 없습니다. 아래 ‘최초 설정’을 먼저 진행하세요.";
+}
+
+function updShowPanel(show) {
+  document.getElementById("updateLock").hidden = show;
+  document.getElementById("updatePanel").hidden = !show;
+  if (show) {
+    const has = !!updGetToken();
+    const st = document.getElementById("updateTokenState");
+    st.innerHTML = has
+      ? "🟢 이 브라우저에 GitHub 토큰이 저장되어 있습니다."
+      : `🔴 이 브라우저에 토큰이 없어 업로드할 수 없습니다. ‘최초 설정’에서 토큰을 저장하세요.`;
+    st.className = "update-token-state " + (has ? "s-up" : "s-down");
+    // 토큰 없으면 업로드 버튼 비활성
+    document.querySelectorAll(".update-send").forEach((b) => {
+      if (b.dataset.kind === "cme") b.disabled = !has;
+      else b.disabled = !has || !document.querySelector(`.update-file[data-kind="${b.dataset.kind}"]`).files.length;
+    });
+  }
+}
+
+function setupUpdateTab() {
+  const pwInput = document.getElementById("updatePw");
+  const unlockBtn = document.getElementById("updateUnlock");
+  const lockMsg = document.getElementById("updateLockMsg");
+
+  document.getElementById("updatePwToggle")?.addEventListener("click", () => {
+    pwInput.type = pwInput.type === "password" ? "text" : "password";
+  });
+  document.getElementById("updateTokenToggle")?.addEventListener("click", () => {
+    const t = document.getElementById("updateTokenInput");
+    t.type = t.type === "password" ? "text" : "password";
+  });
+
+  async function tryUnlock() {
+    const stored = localStorage.getItem(UPDATE_KEYS.pwHash);
+    if (!stored) {
+      lockMsg.textContent = "비밀번호가 설정되지 않았습니다. ‘최초 설정’을 먼저 진행하세요.";
+      return;
+    }
+    const h = await sha256Hex(pwInput.value);
+    if (h === stored) {
+      lockMsg.textContent = "";
+      pwInput.value = "";
+      updShowPanel(true);
+    } else {
+      lockMsg.textContent = "비밀번호가 올바르지 않습니다.";
+    }
+  }
+  unlockBtn?.addEventListener("click", tryUnlock);
+  pwInput?.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") tryUnlock();
+  });
+
+  // 최초 설정 저장(토큰 + 팀 비밀번호)
+  document.getElementById("updateSaveSetup")?.addEventListener("click", async () => {
+    const token = document.getElementById("updateTokenInput").value.trim();
+    const newPw = document.getElementById("updateSetPw").value;
+    const smsg = document.getElementById("updateSetupMsg");
+    if (token) localStorage.setItem(UPDATE_KEYS.token, token);
+    if (newPw) localStorage.setItem(UPDATE_KEYS.pwHash, await sha256Hex(newPw));
+    if (!token && !newPw) {
+      smsg.textContent = "토큰 또는 비밀번호 중 하나 이상 입력하세요.";
+      return;
+    }
+    document.getElementById("updateTokenInput").value = "";
+    document.getElementById("updateSetPw").value = "";
+    smsg.textContent = "✅ 저장했습니다. 이제 비밀번호로 잠금을 해제하세요.";
+    refreshUpdateTabState();
+  });
+
+  // 잠그기
+  document.getElementById("updateLockBtn")?.addEventListener("click", () => {
+    updShowPanel(false);
+    refreshUpdateTabState();
+  });
+
+  // 파일 선택 → 버튼 활성화
+  document.querySelectorAll(".update-file").forEach((inp) => {
+    inp.addEventListener("change", () => {
+      const btn = document.querySelector(`.update-send[data-kind="${inp.dataset.kind}"]`);
+      if (btn) btn.disabled = !updGetToken() || !inp.files.length;
+    });
+  });
+  // 업로드 버튼
+  document.querySelectorAll(".update-send").forEach((btn) => {
+    btn.addEventListener("click", () => (btn.dataset.kind === "cme" ? updSendCme() : updSendFile(btn.dataset.kind)));
+  });
+
+  refreshUpdateTabState();
 }
 
 init();

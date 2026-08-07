@@ -3,6 +3,9 @@ name: Deploy to GitHub Pages
 on:
   push:
     branches: [master]
+    # 업데이트 탭 업로드(data-intake/**)는 data-intake.yml 이 처리·배포하므로 제외
+    paths-ignore:
+      - "data-intake/**"
   workflow_dispatch:
 
 permissions:
