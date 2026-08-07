@@ -2945,7 +2945,14 @@ function init() {
 // ----------------------------------------------------------------------------
 // 🔐 업데이트 탭: 비밀번호 잠금 → 파일 업로드 → GitHub 커밋(data-intake/incoming) →
 // GitHub Actions(data-intake.yml)가 파이썬 스크립트로 반영·배포.
-// 토큰/비밀번호는 소스에 저장하지 않고 이 브라우저 localStorage 에만 보관한다.
+//
+// [토큰 보관 방식] 어느 PC에서나 '비밀번호만'으로 쓸 수 있도록, GitHub 쓰기 토큰을
+// 비밀번호로 AES-GCM 암호화(PBKDF2 파생키)해 사이트 파일(update-config.js)에 저장한다.
+// - 관리자가 최초 1회 토큰+비밀번호를 입력하면, 브라우저가 그 자리에서 암호화해
+//   update-config.js 를 커밋한다(토큰 원문은 소스·서버에 남지 않음).
+// - 이후 방문자는 비밀번호로 복호화해 메모리에서만 토큰을 쓴다(localStorage 미저장).
+// - 공개 사이트라 '암호화된 토큰'은 내려받을 수 있으므로 보안은 비밀번호 세기·비밀유지에
+//   달려 있다(사용자 선택). 유출 의심 시 GitHub에서 토큰을 재발급하면 즉시 무효화된다.
 // ----------------------------------------------------------------------------
 const UPDATE_CFG = (() => {
   // GitHub Pages 주소에서 owner/repo 유추(포크·이전 대비). 실패 시 기본값.
@@ -2959,27 +2966,61 @@ const UPDATE_CFG = (() => {
       if (seg.length) repo = seg[0];
     }
   } catch (e) {}
-  return { owner, repo, branch: "master", dir: "data-intake/incoming" };
+  return { owner, repo, branch: "master", dir: "data-intake/incoming", configPath: "update-config.js" };
 })();
-const UPDATE_KEYS = { token: "dashUpdateToken", pwHash: "dashUpdatePwHash" };
 const UPDATE_FILE_NAMES = {
   calendar: "calendar.xlsx",
   info_daily: "info_daily.xlsx",
   bloomberg: "bloomberg.xlsx",
   cme: "cme.json",
 };
+const UPDATE_PBKDF2_ITERS = 600000;
 
-async function sha256Hex(text) {
-  const buf = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
-  return [...new Uint8Array(buf)].map((b) => b.toString(16).padStart(2, "0")).join("");
-}
+// 세션 동안만 메모리에 두는 복호화된 토큰(localStorage 미저장)
+let updToken = "";
 function updGetToken() {
-  return localStorage.getItem(UPDATE_KEYS.token) || "";
+  return updToken;
 }
+function updHasEnc() {
+  return typeof window.UPDATE_ENC === "string" && window.UPDATE_ENC.length > 0;
+}
+
+// ── 암복호화(PBKDF2 → AES-GCM) ──
+function _b64(bytes) {
+  return btoa(String.fromCharCode(...new Uint8Array(bytes)));
+}
+function _ub64(str) {
+  return Uint8Array.from(atob(str), (c) => c.charCodeAt(0));
+}
+async function updDeriveKey(password, salt, iters) {
+  const base = await crypto.subtle.importKey("raw", new TextEncoder().encode(password), "PBKDF2", false, [
+    "deriveKey",
+  ]);
+  return crypto.subtle.deriveKey(
+    { name: "PBKDF2", salt, iterations: iters, hash: "SHA-256" },
+    base,
+    { name: "AES-GCM", length: 256 },
+    false,
+    ["encrypt", "decrypt"]
+  );
+}
+async function updEncrypt(plain, password) {
+  const salt = crypto.getRandomValues(new Uint8Array(16));
+  const iv = crypto.getRandomValues(new Uint8Array(12));
+  const key = await updDeriveKey(password, salt, UPDATE_PBKDF2_ITERS);
+  const ct = await crypto.subtle.encrypt({ name: "AES-GCM", iv }, key, new TextEncoder().encode(plain));
+  return `${UPDATE_PBKDF2_ITERS}.${_b64(salt)}.${_b64(iv)}.${_b64(ct)}`;
+}
+async function updDecrypt(blob, password) {
+  const [itersStr, s, i, c] = blob.split(".");
+  const key = await updDeriveKey(password, _ub64(s), parseInt(itersStr, 10) || UPDATE_PBKDF2_ITERS);
+  const pt = await crypto.subtle.decrypt({ name: "AES-GCM", iv: _ub64(i) }, key, _ub64(c)); // 틀리면 throw
+  return new TextDecoder().decode(pt);
+}
+
 function updActionsUrl() {
   return `https://github.com/${UPDATE_CFG.owner}/${UPDATE_CFG.repo}/actions`;
 }
-
 function updSetLog(kind, html, cls) {
   const el = document.querySelector(`.update-log[data-kind="${kind}"]`);
   if (el) el.innerHTML = `<span class="${cls || ""}">${html}</span>`;
@@ -2999,24 +3040,20 @@ function strToBase64(str) {
   return btoa(String.fromCharCode(...new TextEncoder().encode(str)));
 }
 
-// data-intake/incoming/<name> 에 커밋(있으면 갱신). 성공 시 커밋 sha 반환.
-async function updCommitFile(name, base64Content, message) {
-  const token = updGetToken();
-  if (!token) throw new Error("이 브라우저에 GitHub 토큰이 없습니다. 관리자 최초 설정이 필요합니다.");
-  const path = `${UPDATE_CFG.dir}/${name}`;
+// 저장소 임의 경로에 커밋(있으면 갱신). 성공 시 커밋 sha 반환.
+async function updCommitPath(path, base64Content, message, tokenOverride) {
+  const token = tokenOverride || updGetToken();
+  if (!token) throw new Error("GitHub 토큰이 없습니다. 비밀번호로 잠금을 먼저 해제하세요.");
   const apiBase = `https://api.github.com/repos/${UPDATE_CFG.owner}/${UPDATE_CFG.repo}/contents/${path}`;
   const headers = {
     Authorization: `Bearer ${token}`,
     Accept: "application/vnd.github+json",
     "X-GitHub-Api-Version": "2022-11-28",
   };
-  // 기존 파일 sha 확인(있으면 갱신)
   let sha;
   const getRes = await fetch(`${apiBase}?ref=${UPDATE_CFG.branch}`, { headers });
   if (getRes.ok) sha = (await getRes.json()).sha;
-  else if (getRes.status !== 404) {
-    throw new Error(`GitHub 조회 실패(${getRes.status}). 토큰 권한을 확인하세요.`);
-  }
+  else if (getRes.status !== 404) throw new Error(`GitHub 조회 실패(${getRes.status}). 토큰 권한을 확인하세요.`);
   const putRes = await fetch(apiBase, {
     method: "PUT",
     headers,
@@ -3027,9 +3064,13 @@ async function updCommitFile(name, base64Content, message) {
     try {
       detail = (await putRes.json()).message || "";
     } catch (e) {}
-    throw new Error(`업로드 실패(${putRes.status}). ${detail}`);
+    throw new Error(`커밋 실패(${putRes.status}). ${detail}`);
   }
   return (await putRes.json())?.commit?.sha;
+}
+// data-intake/incoming/<name> 에 커밋
+function updCommitFile(name, base64Content, message) {
+  return updCommitPath(`${UPDATE_CFG.dir}/${name}`, base64Content, message);
 }
 
 async function updSendFile(kind) {
@@ -3084,13 +3125,18 @@ async function updSendCme() {
   btn.disabled = false;
 }
 
-// 잠금/설정 상태에 따라 화면 갱신
+// 잠금 화면 상태 갱신: 사이트에 암호화 토큰(update-config.js)이 설정됐는지에 따라 안내
 function refreshUpdateTabState() {
-  const hasPw = !!localStorage.getItem(UPDATE_KEYS.pwHash);
+  const configured = updHasEnc();
   const setup = document.getElementById("updateSetup");
   const msg = document.getElementById("updateLockMsg");
-  if (setup) setup.open = !hasPw; // 비밀번호 미설정이면 설정 안내 펼침
-  if (msg) msg.textContent = hasPw ? "" : "이 브라우저에 설정이 없습니다. 아래 ‘최초 설정’을 먼저 진행하세요.";
+  const unlockBtn = document.getElementById("updateUnlock");
+  if (setup) setup.open = !configured; // 미설정이면 관리자 설정 안내 펼침
+  if (unlockBtn) unlockBtn.disabled = !configured;
+  if (msg)
+    msg.textContent = configured
+      ? ""
+      : "아직 설정 전입니다. 관리자가 아래 ‘최초 설정’에서 토큰을 한 번 저장하면, 이후 모든 PC에서 비밀번호로 쓸 수 있습니다.";
 }
 
 function updShowPanel(show) {
@@ -3099,11 +3145,8 @@ function updShowPanel(show) {
   if (show) {
     const has = !!updGetToken();
     const st = document.getElementById("updateTokenState");
-    st.innerHTML = has
-      ? "🟢 이 브라우저에 GitHub 토큰이 저장되어 있습니다."
-      : `🔴 이 브라우저에 토큰이 없어 업로드할 수 없습니다. ‘최초 설정’에서 토큰을 저장하세요.`;
+    st.innerHTML = has ? "🟢 인증됨 — 파일을 올리면 자동 반영됩니다." : "🔴 토큰이 복호화되지 않았습니다.";
     st.className = "update-token-state " + (has ? "s-up" : "s-down");
-    // 토큰 없으면 업로드 버튼 비활성
     document.querySelectorAll(".update-send").forEach((b) => {
       if (b.dataset.kind === "cme") b.disabled = !has;
       else b.disabled = !has || !document.querySelector(`.update-file[data-kind="${b.dataset.kind}"]`).files.length;
@@ -3124,18 +3167,20 @@ function setupUpdateTab() {
     t.type = t.type === "password" ? "text" : "password";
   });
 
+  // 비밀번호로 잠금 해제 = 사이트의 암호화 토큰을 복호화
   async function tryUnlock() {
-    const stored = localStorage.getItem(UPDATE_KEYS.pwHash);
-    if (!stored) {
-      lockMsg.textContent = "비밀번호가 설정되지 않았습니다. ‘최초 설정’을 먼저 진행하세요.";
+    if (!updHasEnc()) {
+      lockMsg.textContent = "아직 설정 전입니다. 관리자 ‘최초 설정’을 먼저 진행하세요.";
       return;
     }
-    const h = await sha256Hex(pwInput.value);
-    if (h === stored) {
+    lockMsg.textContent = "🔓 확인 중…";
+    try {
+      updToken = await updDecrypt(window.UPDATE_ENC, pwInput.value);
       lockMsg.textContent = "";
       pwInput.value = "";
       updShowPanel(true);
-    } else {
+    } catch (e) {
+      updToken = "";
       lockMsg.textContent = "비밀번호가 올바르지 않습니다.";
     }
   }
@@ -3144,25 +3189,40 @@ function setupUpdateTab() {
     if (e.key === "Enter") tryUnlock();
   });
 
-  // 최초 설정 저장(토큰 + 팀 비밀번호)
+  // 최초 설정(관리자): 토큰을 비밀번호로 암호화해 update-config.js 로 커밋
   document.getElementById("updateSaveSetup")?.addEventListener("click", async () => {
     const token = document.getElementById("updateTokenInput").value.trim();
-    const newPw = document.getElementById("updateSetPw").value;
+    const pw = document.getElementById("updateSetPw").value;
     const smsg = document.getElementById("updateSetupMsg");
-    if (token) localStorage.setItem(UPDATE_KEYS.token, token);
-    if (newPw) localStorage.setItem(UPDATE_KEYS.pwHash, await sha256Hex(newPw));
-    if (!token && !newPw) {
-      smsg.textContent = "토큰 또는 비밀번호 중 하나 이상 입력하세요.";
+    if (!token || !pw) {
+      smsg.textContent = "GitHub 토큰과 비밀번호를 모두 입력하세요.";
+      smsg.className = "ai-status s-down";
       return;
     }
-    document.getElementById("updateTokenInput").value = "";
-    document.getElementById("updateSetPw").value = "";
-    smsg.textContent = "✅ 저장했습니다. 이제 비밀번호로 잠금을 해제하세요.";
-    refreshUpdateTabState();
+    smsg.textContent = "⏳ 암호화 후 저장 중…";
+    smsg.className = "ai-status";
+    try {
+      const blob = await updEncrypt(token, pw);
+      const fileBody = `// 이 파일은 '업데이트 탭 → 최초 설정'이 자동 생성합니다. 비밀번호로 암호화된 GitHub 토큰이며 직접 편집하지 마세요.\nwindow.UPDATE_ENC = "${blob}";\n`;
+      await updCommitPath(UPDATE_CFG.configPath, strToBase64(fileBody), "chore: 업데이트 탭 인증 설정(암호화 토큰)", token);
+      // 이 세션에서 바로 쓸 수 있게 메모리 반영
+      window.UPDATE_ENC = blob;
+      updToken = token;
+      document.getElementById("updateTokenInput").value = "";
+      document.getElementById("updateSetPw").value = "";
+      smsg.textContent = "✅ 저장 완료. 배포 후(1~2분) 모든 PC에서 이 비밀번호로 사용할 수 있습니다.";
+      smsg.className = "ai-status s-up";
+      refreshUpdateTabState();
+      updShowPanel(true); // 관리자는 즉시 사용
+    } catch (e) {
+      smsg.textContent = "❌ " + (e.message || e);
+      smsg.className = "ai-status s-down";
+    }
   });
 
   // 잠그기
   document.getElementById("updateLockBtn")?.addEventListener("click", () => {
+    updToken = "";
     updShowPanel(false);
     refreshUpdateTabState();
   });

@@ -26,13 +26,18 @@
   기존 파이썬 스크립트(update-calendar/rates/bloomberg/cme)를 실행해 데이터 파일을
   갱신·커밋하고 Pages를 재배포(약 1~2분). 원본 파일은 처리 후 자동 삭제.
 - 받는 4종: `calendar.xlsx`, `info_daily.xlsx`, `bloomberg.xlsx`(파일) + `cme.json`(폼 입력).
-- 인증(중요): GitHub 토큰·비밀번호는 **소스에 저장하지 않고** 사용자 브라우저
-  localStorage에만 보관(AI 키와 동일). 공개 사이트라 비밀번호는 보조 잠금이고 실제
-  쓰기 권한은 토큰이 가짐 → 방문자는 토큰이 없어 아무것도 못 바꿈. 관리자가 회의용
-  PC 브라우저에서 최초 1회 토큰(Fine-grained, 이 저장소 Contents 읽기/쓰기)+공용
-  비밀번호를 저장하면, 이후 동료는 비밀번호만으로 사용.
+- 인증(중요): 어느 PC에서나 **비밀번호만으로** 쓸 수 있도록, GitHub 쓰기 토큰을
+  비밀번호로 **AES-GCM 암호화(PBKDF2 파생키, 60만 iters)** 해 사이트 파일
+  `update-config.js`(`window.UPDATE_ENC`)에 저장. 관리자가 최초 1회 토큰
+  (Fine-grained, 이 저장소 Contents 읽기/쓰기)+비밀번호를 입력하면 브라우저가 그
+  자리에서 암호화해 `update-config.js`를 커밋한다(토큰 원문은 소스·서버·localStorage
+  어디에도 안 남음). 이후 방문자는 비밀번호로 복호화해 **메모리에서만** 토큰 사용.
+- 보안 주의: 공개 저장소라 암호화된 토큰 블록은 내려받을 수 있으므로 보안이 오로지
+  비밀번호 세기·비밀유지에 달림(사용자가 이 트레이드오프를 선택). **비밀번호는 소스에
+  절대 넣지 말 것.** 유출 의심 시 GitHub에서 토큰 재발급하면 즉시 무효화.
 - 관련 파일: `scripts/update-cme.py`, `.github/workflows/data-intake.yml`,
-  `data-intake/incoming/`, app.js의 `setupUpdateTab`/`UPDATE_CFG`.
+  `data-intake/incoming/`, `update-config.js`(자동 생성), app.js의
+  `setupUpdateTab`/`updEncrypt`/`updDecrypt`/`UPDATE_CFG`.
 
 ## 수동 업데이트 방법 (담당자 로컬에서 CLI로)
 - **경제 캘린더**: 엑셀을 `data-imports/calendar.xlsx`로 저장 후
