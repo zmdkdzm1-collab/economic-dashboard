@@ -221,19 +221,21 @@
           <button id="updateUnlock" class="ai-submit">잠금 해제</button>
           <span id="updateLockMsg" class="ai-status"></span>
           <details class="update-setup" id="updateSetup">
-            <summary>⚙️ 최초 설정 (관리자만 · 이 컴퓨터에 한 번만)</summary>
+            <summary>⚙️ 최초 설정 (관리자만 · 팀 전체에 한 번만)</summary>
             <p class="update-setup-desc">
-              이 컴퓨터(브라우저)에서 자동 반영이 되게 하려면 GitHub 쓰기 토큰과 팀 공용 비밀번호를 한 번 저장하세요.
-              토큰은 <strong>소스에 저장되지 않고 이 브라우저에만</strong> 보관됩니다(AI 키와 동일 방식).
+              GitHub 쓰기 토큰을 <strong>비밀번호로 암호화해 사이트에 저장</strong>합니다. 한 번만 하면
+              이후 <strong>어느 PC에서나 이 비밀번호만으로</strong> 업데이트할 수 있습니다. 토큰 원문은
+              소스·서버에 남지 않으며(암호화된 형태만 저장), 이 브라우저에도 저장하지 않습니다.
+              공개 사이트이므로 보안은 비밀번호의 세기·비밀유지에 달려 있습니다(유출 의심 시 GitHub에서 토큰 재발급).
             </p>
             <label for="updateTokenInput">GitHub 토큰 <span class="ai-hint">Fine-grained · 이 저장소 Contents 읽기/쓰기</span></label>
             <div class="ai-key-row">
               <input type="password" id="updateTokenInput" placeholder="github_pat_..." autocomplete="off" />
               <button type="button" id="updateTokenToggle" class="ai-key-toggle" title="표시/숨김">👁</button>
             </div>
-            <label for="updateSetPw">팀 공용 비밀번호 (새로 정하기)</label>
+            <label for="updateSetPw">팀 공용 비밀번호</label>
             <input type="password" id="updateSetPw" placeholder="동료와 공유할 비밀번호" autocomplete="off" />
-            <button id="updateSaveSetup" class="ai-submit">설정 저장</button>
+            <button id="updateSaveSetup" class="ai-submit">암호화해서 사이트에 저장</button>
             <span id="updateSetupMsg" class="ai-status"></span>
           </details>
         </div>
@@ -245,6 +247,7 @@
           <span id="updateTokenState" class="update-token-state"></span>
           <button id="updateLockBtn" class="ai-reset">🔒 잠그기</button>
         </div>
+        <p class="update-setup-desc">이 창에서만 인증이 유지됩니다(탭을 닫으면 다시 비밀번호 필요). 어느 PC에서나 같은 비밀번호로 열 수 있습니다.</p>
 
         <div class="update-cards">
           <div class="update-card" data-kind="calendar">
@@ -306,6 +309,7 @@
   <script src="data.js"></script>
   <script src="rate-data.js"></script>
   <script src="bloomberg-data.js"></script>
+  <script src="update-config.js"></script>
   <script src="app.js"></script>
 </body>
 </html>
