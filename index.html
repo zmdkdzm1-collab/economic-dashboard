@@ -253,7 +253,10 @@
           <div class="update-card" data-kind="calendar">
             <div class="update-card-head">📅 경제 캘린더 <span class="update-card-file">calendar 엑셀</span></div>
             <p class="update-card-desc">인베스팅닷컴류 캘린더 엑셀(.xlsx). 8월 등 발표값·일정 갱신.</p>
-            <input type="file" class="update-file" accept=".xlsx" data-kind="calendar" />
+            <label class="update-drop" data-kind="calendar">
+              <input type="file" class="update-file" accept=".xlsx" data-kind="calendar" hidden />
+              <span class="update-drop-text">파일을 여기로 끌어다 놓거나 클릭해서 선택</span>
+            </label>
             <button class="update-send ai-submit" data-kind="calendar" disabled>업로드 · 반영</button>
             <div class="update-log" data-kind="calendar"></div>
           </div>
@@ -261,7 +264,10 @@
           <div class="update-card" data-kind="info_daily">
             <div class="update-card-head">📈 인포맥스 일별 <span class="update-card-file">info_daily 엑셀</span></div>
             <p class="update-card-desc">일별 금리·환율 시계열(.xlsx). 최신 영업일 추가 + 블룸버그 교차검증.</p>
-            <input type="file" class="update-file" accept=".xlsx" data-kind="info_daily" />
+            <label class="update-drop" data-kind="info_daily">
+              <input type="file" class="update-file" accept=".xlsx" data-kind="info_daily" hidden />
+              <span class="update-drop-text">파일을 여기로 끌어다 놓거나 클릭해서 선택</span>
+            </label>
             <button class="update-send ai-submit" data-kind="info_daily" disabled>업로드 · 반영</button>
             <div class="update-log" data-kind="info_daily"></div>
           </div>
@@ -269,7 +275,10 @@
           <div class="update-card" data-kind="bloomberg">
             <div class="update-card-head">🏦 블룸버그 매크로 <span class="update-card-file">bb_data 엑셀</span></div>
             <p class="update-card-desc">블룸버그 매크로/시장 데이터(.xlsx). 최신값만 이어붙임(이력 보존).</p>
-            <input type="file" class="update-file" accept=".xlsx" data-kind="bloomberg" />
+            <label class="update-drop" data-kind="bloomberg">
+              <input type="file" class="update-file" accept=".xlsx" data-kind="bloomberg" hidden />
+              <span class="update-drop-text">파일을 여기로 끌어다 놓거나 클릭해서 선택</span>
+            </label>
             <button class="update-send ai-submit" data-kind="bloomberg" disabled>업로드 · 반영</button>
             <div class="update-log" data-kind="bloomberg"></div>
           </div>
@@ -290,9 +299,8 @@
         </div>
 
         <p class="ai-disclaimer">
-          ⚠️ 올린 파일은 GitHub 저장소의 처리 폴더에 잠시 커밋되었다가 자동으로 지워지며, GitHub Actions가
-          기존 파이썬 스크립트로 검증·반영합니다. 반영 진행 상황은 저장소의 <strong>Actions</strong> 탭에서 볼 수 있고,
-          완료되면 약 1~2분 뒤 사이트에 반영됩니다. (공개 사이트이므로 비밀번호는 보조 잠금이며, 실제 권한은 GitHub 토큰이 가집니다.)
+          ⚠️ 올린 파일은 자동으로 검증·반영된 뒤 약 1~2분이면 사이트에 나타납니다(새로고침해서 확인).
+          원본 파일은 처리 후 자동으로 삭제됩니다. 3개를 다 올려도 되고, 바뀐 것만 올려도 됩니다.
         </p>
       </div>
     </section>
