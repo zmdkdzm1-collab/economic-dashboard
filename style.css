@@ -1716,3 +1716,14 @@ main {
 .update-cme-form label { display: flex; flex-direction: column; gap: 3px; font-size: 0.8rem; font-weight: 600; }
 .update-cme-form input { padding: 7px 9px; border: 1px solid var(--border); border-radius: 8px;
   background: var(--input-bg, var(--card-bg)); color: var(--text); }
+
+/* 업데이트 탭 드래그앤드롭 존 */
+.update-drop { display: flex; align-items: center; justify-content: center; text-align: center;
+  min-height: 74px; padding: 12px; border: 2px dashed var(--border); border-radius: 10px;
+  background: var(--input-bg, var(--card-bg)); color: var(--text-muted); cursor: pointer;
+  font-size: 0.85rem; transition: border-color .15s, background .15s, color .15s; }
+.update-drop:hover { border-color: var(--accent); color: var(--text); }
+.update-drop.dragover { border-color: var(--accent); background: var(--accent-bg); color: var(--text); }
+.update-drop.has-file { border-style: solid; border-color: var(--up, #128a4a);
+  color: var(--text); background: var(--card-bg); font-weight: 600; }
+.update-drop-text { pointer-events: none; word-break: break-all; }

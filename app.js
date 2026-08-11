@@ -3018,9 +3018,6 @@ async function updDecrypt(blob, password) {
   return new TextDecoder().decode(pt);
 }
 
-function updActionsUrl() {
-  return `https://github.com/${UPDATE_CFG.owner}/${UPDATE_CFG.repo}/actions`;
-}
 function updSetLog(kind, html, cls) {
   const el = document.querySelector(`.update-log[data-kind="${kind}"]`);
   if (el) el.innerHTML = `<span class="${cls || ""}">${html}</span>`;
@@ -3088,10 +3085,16 @@ async function updSendFile(kind) {
     await updCommitFile(UPDATE_FILE_NAMES[kind], b64, `데이터 업로드: ${kind} (업데이트 탭)`);
     updSetLog(
       kind,
-      `✅ 업로드 완료. GitHub이 처리 중입니다(약 1~2분). <a href="${updActionsUrl()}" target="_blank" rel="noopener">진행 상황 보기 ↗</a>`,
+      `✅ 업데이트 완료 — 약 1~2분 뒤 사이트에 자동 반영됩니다.`,
       "s-up"
     );
     input.value = "";
+    const drop = document.querySelector(`.update-drop[data-kind="${kind}"]`);
+    if (drop) {
+      drop.classList.remove("has-file");
+      const t = drop.querySelector(".update-drop-text");
+      if (t) t.textContent = "파일을 여기로 끌어다 놓거나 클릭해서 선택";
+    }
   } catch (e) {
     updSetLog(kind, "❌ " + (e.message || e), "s-down");
     btn.disabled = false;
@@ -3116,7 +3119,7 @@ async function updSendCme() {
     await updCommitFile("cme.json", strToBase64(json), "CME FedWatch 업로드 (업데이트 탭)");
     updSetLog(
       "cme",
-      `✅ 업로드 완료. GitHub이 처리 중입니다(약 1~2분). <a href="${updActionsUrl()}" target="_blank" rel="noopener">진행 상황 보기 ↗</a>`,
+      `✅ 업데이트 완료 — 약 1~2분 뒤 사이트에 자동 반영됩니다.`,
       "s-up"
     );
   } catch (e) {
@@ -3227,11 +3230,45 @@ function setupUpdateTab() {
     refreshUpdateTabState();
   });
 
-  // 파일 선택 → 버튼 활성화
+  // 파일 선택 → 드롭존 라벨/버튼 갱신
+  function updOnFilePicked(inp) {
+    const kind = inp.dataset.kind;
+    const drop = document.querySelector(`.update-drop[data-kind="${kind}"]`);
+    const txt = drop && drop.querySelector(".update-drop-text");
+    const btn = document.querySelector(`.update-send[data-kind="${kind}"]`);
+    if (inp.files.length) {
+      if (txt) txt.textContent = `📄 ${inp.files[0].name}`;
+      if (drop) drop.classList.add("has-file");
+    } else {
+      if (txt) txt.textContent = "파일을 여기로 끌어다 놓거나 클릭해서 선택";
+      if (drop) drop.classList.remove("has-file");
+    }
+    if (btn) btn.disabled = !updGetToken() || !inp.files.length;
+  }
   document.querySelectorAll(".update-file").forEach((inp) => {
-    inp.addEventListener("change", () => {
-      const btn = document.querySelector(`.update-send[data-kind="${inp.dataset.kind}"]`);
-      if (btn) btn.disabled = !updGetToken() || !inp.files.length;
+    inp.addEventListener("change", () => updOnFilePicked(inp));
+  });
+  // 드래그앤드롭
+  document.querySelectorAll(".update-drop").forEach((drop) => {
+    const inp = drop.querySelector(".update-file");
+    ["dragenter", "dragover"].forEach((ev) =>
+      drop.addEventListener(ev, (e) => {
+        e.preventDefault();
+        drop.classList.add("dragover");
+      })
+    );
+    ["dragleave", "dragend"].forEach((ev) =>
+      drop.addEventListener(ev, () => drop.classList.remove("dragover"))
+    );
+    drop.addEventListener("drop", (e) => {
+      e.preventDefault();
+      drop.classList.remove("dragover");
+      const f = e.dataTransfer && e.dataTransfer.files && e.dataTransfer.files[0];
+      if (!f) return;
+      const dt = new DataTransfer();
+      dt.items.add(f);
+      inp.files = dt.files;
+      updOnFilePicked(inp);
     });
   });
   // 업로드 버튼
