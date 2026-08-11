@@ -51,8 +51,9 @@ CONCEPT = {
     "us_cpi":        (["CPI", "소비자물가"], ["근원", "Core"]),
     "us_core_cpi":   (["근원 CPI", "근원 소비자물가", "Core CPI"], []),
     "us_pce":        (["PCE", "개인소비지출"], []),
-    "us_nfp":        (["비농업"], []),
-    "us_unemployment": (["실업률"], []),
+    # us_nfp / us_unemployment 는 여기서 지우지 않는다(엑셀 실제값 행을 보존).
+    # 지표 사전 history 가 오래돼 native 이벤트가 값을 못 채우므로, raw 행을 살려
+    # app.js RAW_MATCH + dedupDayEvents 가 값 있는 행을 우선 표시하게 한다.
     "us_ism_mfg":    (["ISM 제조업 PMI"], []),
     "us_ism_svc":    (["ISM 서비스업 PMI", "ISM 비제조업"], []),
     "us_retail_sales": (["소매판매"], []),

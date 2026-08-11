@@ -122,6 +122,10 @@ const RAW_MATCH = {
   // 미국 — 기본 지표(파이썬 중복제거 누락분 대비 안전망)
   us_ism_mfg:      { c: "미국", inc: ["ISM 제조업 PMI"], exc: ["가격", "고용", "신규", "주문"] },
   us_ism_svc:      { c: "미국", inc: ["ISM 서비스업 PMI"], exc: ["가격", "고용", "신규", "주문", "활동"] },
+  // 고용보고서: 지표 사전 history 가 오래돼 native 이벤트가 값을 못 채우므로,
+  // 엑셀 실제값 행을 사전에 연동해 값 있는 쪽을 보여준다(dedupDayEvents).
+  us_nfp:          { c: "미국", inc: ["비농업 고용"], exc: ["생산성"] },
+  us_unemployment: { c: "미국", inc: ["실업률"], exc: [] },
   // 한국
   kr_exports:      { c: "한국", inc: ["수출 YoY"], exc: ["가격"] },
   kr_imports:      { c: "한국", inc: ["수입 YoY"], exc: ["가격"] },
