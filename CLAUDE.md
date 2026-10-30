@@ -1,6 +1,7 @@
 # economic-dashboard — 프로젝트 안내
 
 정적(HTML/CSS/JS) 경제지표 대시보드. 서버 없음. GitHub Pages로 배포.
+인수인계 체크리스트·알려진 이슈는 `HANDOVER.md`, 팀원용 업데이트 방법은 `사용법.md`.
 
 ## 구조
 - `index.html` — 탭: 홈 / 지표 사전 / 발표 캘린더 / 통화정책 / AI 분석 / 업데이트
@@ -16,8 +17,9 @@
 - 작업 → 커밋 → push → (필요시 PR) → master 병합 = 배포.
 
 ## 자동 매일 갱신 (GitHub Actions, 손 안 대도 됨)
-- FRED / ECOS / e-Stat 참조 시계열(비교 도구용). 키는 저장소 Secrets에 있음.
-- FedWatch는 CME 유료 API라 사실상 수동.
+- FRED / ECOS / e-Stat 참조 시계열(비교 도구용). 키는 저장소 Secrets(`FRED_API_KEY`,
+  `ECOS_API_KEY`, `ESTAT_APP_ID`) — 미설정이면 워크플로가 "건너뜀"으로 정상 종료.
+- FedWatch는 CME 유료 API(`CME_API_URL`/`CME_API_KEY`)라 사실상 수동(업데이트 탭 CME 카드).
 
 ## 셀프서비스 업데이트 (홈페이지 🔐 업데이트 탭 — 담당자 없이도 갱신)
 - 목적: 회의용 대시보드를 비개발자 동료도 파일 업로드만으로 갱신.
